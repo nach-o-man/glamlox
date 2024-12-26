@@ -6,6 +6,7 @@ import gleam/list
 import gleam/string
 import scanner
 import simplifile
+import token
 
 pub fn main() {
   case argv.load().arguments {
@@ -30,11 +31,11 @@ fn run_file(script: String) {
 
 fn run(source: String) {
   let tokens = scanner.scan_tokens(source)
-  list.each(tokens, fn(token) { io.println(token.src) })
+  list.each(tokens, fn(token) { io.println(token.to_string(token)) })
 }
 
 fn run_prompt() {
-  let assert Ok(line) = erlang.get_line("glamlox > ")
+  let assert Ok(line) = erlang.get_line("> ")
   case string.trim(line) {
     "exit" -> Nil
     _ -> {

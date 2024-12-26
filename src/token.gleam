@@ -1,4 +1,5 @@
 import gleam/erlang
+import gleam/option
 
 pub type TokenType {
   // Single-character tokens.
@@ -52,13 +53,27 @@ pub type TokenType {
 }
 
 pub opaque type Token {
-  Token(tp: TokenType, lexeme: String, literal: String, line: Int)
+  Token(
+    tp: TokenType,
+    lexeme: String,
+    literal: option.Option(String),
+    line: Int,
+  )
 }
 
-pub fn new(tp: TokenType, lexeme: String, literal: String, line: Int) -> Token {
+pub fn new(
+  tp: TokenType,
+  lexeme: String,
+  literal: option.Option(String),
+  line: Int,
+) -> Token {
   Token(tp, lexeme, literal, line)
 }
 
 pub fn to_string(token: Token) -> String {
-  erlang.format(token.tp) <> " " <> token.lexeme <> " " <> token.literal
+  erlang.format(token.tp)
+  <> " "
+  <> token.lexeme
+  <> " "
+  <> option.unwrap(token.literal, erlang.format(Nil))
 }
