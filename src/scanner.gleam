@@ -3,6 +3,12 @@ import gleam/option
 import gleam/string
 import token
 
+type ScannedToken {
+  Single(tp: token.TokenType)
+  Double(tp: token.TokenType, lexeme_tail: String)
+  Unknown
+}
+
 pub opaque type Scanner {
   Scanner(source: String)
 }
@@ -20,47 +26,82 @@ pub fn scan_tokens(source: String) -> List(token.Token) {
 
 fn scan_tokens_inner(
   graphemes: List(String),
-  scanned: List(token.Token),
+  scanned_tokens: List(token.Token),
   line: Int,
 ) -> #(List(token.Token), Int) {
   case graphemes {
-    [first, ..rest] -> {
-      let single_token = scan_token(first, line)
-      let scanned = case single_token {
-        option.Some(yes) -> list.append(scanned, [yes])
-        _ -> scanned
+    [] -> #(scanned_tokens, line)
+    _ -> {
+      let token = scan_token(graphemes, line)
+      let #(scanned_tokens, shift) = case token {
+        option.Some(#(new_token, graphemes_read)) -> #(
+          list.append(scanned_tokens, [new_token]),
+          graphemes_read,
+        )
+        _ -> #(scanned_tokens, 1)
       }
-      scan_tokens_inner(rest, scanned, 0)
+      let rest = list.drop(graphemes, shift)
+      scan_tokens_inner(rest, scanned_tokens, 0)
     }
-    [] -> #(scanned, line)
   }
 }
 
-fn scan_token(source: String, line: Int) -> option.Option(token.Token) {
-  let token_type = case source {
-    "(" -> option.Some(token.LeftParen)
-    ")" -> option.Some(token.RightParen)
-    "{" -> option.Some(token.LeftBrace)
-    "}" -> option.Some(token.RightBrace)
-    "," -> option.Some(token.Comma)
-    "." -> option.Some(token.Dot)
-    "-" -> option.Some(token.Minus)
-    "+" -> option.Some(token.Plus)
-    ";" -> option.Some(token.Semicolon)
-    "*" -> option.Some(token.Star)
+fn scan_token(
+  source: List(String),
+  line: Int,
+) -> option.Option(#(token.Token, Int)) {
+  let assert Ok(first) = list.first(source)
+  let rest = list.rest(source)
+  let scanned_token = case first {
+    "(" -> Single(token.LeftParen)
+    ")" -> Single(token.RightParen)
+    "{" -> Single(token.LeftBrace)
+    "}" -> Single(token.RightBrace)
+    "," -> Single(token.Comma)
+    "." -> Single(token.Dot)
+    "-" -> Single(token.Minus)
+    "+" -> Single(token.Plus)
+    ";" -> Single(token.Semicolon)
+    "*" -> Single(token.Star)
+    "!" -> match(rest, "=", token.BangEqual, token.Bang)
+    "=" -> match(rest, "=", token.EqualEqual, token.Equal)
+    ">" -> match(rest, "=", token.GreaterEqual, token.Greater)
+    "<" -> match(rest, "=", token.LessEqual, token.Less)
+    _ -> Unknown
+  }
+
+  case scanned_token {
+    Single(token_type) -> option.Some(add_token(token_type, first, line))
+    Double(token_type, rest) -> {
+      option.Some(add_token(token_type, first <> rest, line))
+    }
     _ -> option.None
   }
+}
 
-  case token_type {
-    option.Some(token_type) -> single_token(token_type, source, line)
-    option.None -> option.None
+fn match(
+  source: Result(List(String), Nil),
+  expected: String,
+  true_result: token.TokenType,
+  false_result: token.TokenType,
+) -> ScannedToken {
+  case source {
+    Error(_) -> Unknown
+    Ok(data) -> {
+      let assert Ok(first) = list.first(data)
+      case first == expected {
+        True -> Double(true_result, first)
+        False -> Single(false_result)
+      }
+    }
   }
 }
 
-fn single_token(
+fn add_token(
   tp: token.TokenType,
   lexeme: String,
   line: Int,
-) -> option.Option(token.Token) {
-  option.Some(token.new(tp, lexeme, option.None, line))
+) -> #(token.Token, Int) {
+  let shift = string.length(lexeme)
+  #(token.new(tp, lexeme, option.None, line), shift)
 }
