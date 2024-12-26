@@ -1,5 +1,6 @@
 import argv
 import gleam/erlang
+import gleam/int
 import gleam/io
 import gleam/list
 import gleam/string
@@ -41,4 +42,19 @@ fn run_prompt() {
       run_prompt()
     }
   }
+}
+
+pub fn error(line: Int, message: String) {
+  report_line(line, "", message)
+}
+
+fn had_error() {
+  panic as "Error has occured. Exiting."
+}
+
+fn report_line(line: Int, where: String, message: String) {
+  io.println(
+    "[line " <> int.to_string(line) <> "] Error" <> where <> ": " <> message,
+  )
+  had_error()
 }
