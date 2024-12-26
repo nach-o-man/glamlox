@@ -52,7 +52,7 @@ pub type TokenType {
   Eof
 }
 
-pub opaque type Token {
+pub type Token {
   Token(
     tp: TokenType,
     lexeme: String,

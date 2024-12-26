@@ -9,6 +9,7 @@ type ScannedToken {
   Ignored
   NewLine
   Comment
+  String
   Unknown
 }
 
@@ -66,9 +67,18 @@ fn scan_token(
     }
     " " | "\r" | "\t" -> Ignored
     "\n" -> NewLine
+    "\"" -> String
     _ -> Unknown
   }
 
+  process_scanned_token(scanned_token, graphemes, line)
+}
+
+fn process_scanned_token(
+  scanned_token: ScannedToken,
+  graphemes: List(String),
+  line,
+) -> #(option.Option(token.Token), List(String), Int) {
   case scanned_token {
     Single(token_type) -> {
       let #(left, right) = list.split(graphemes, 1)
@@ -79,15 +89,29 @@ fn scan_token(
       #(add_token(token_type, left, line), right, line)
     }
     Comment -> {
-      #(
-        option.None,
-        list.drop_while(graphemes, fn(grapheme) { grapheme != "\n" }),
-        line,
-      )
+      #(option.None, list.drop_while(graphemes, fn(gr) { gr != "\n" }), line)
     }
     NewLine -> {
       let new_line = line + 1
       #(option.None, list.drop(graphemes, 1), new_line)
+    }
+    String -> {
+      let #(left_quote, rest) = list.split(graphemes, 1)
+      let #(data, right) = list.split_while(rest, fn(gr) { gr != "\"" })
+      case right {
+        [] -> panic as "Unterminated string."
+        _ -> {
+          let #(right_quote, rest) = list.split(right, 1)
+          let lexeme = list.append(left_quote, data) |> list.append(right_quote)
+          let value = string.join(data, "")
+          let new_line = list.count(data, fn(gr) { gr == "\n" }) + line
+          #(
+            add_value_token(token.String, lexeme, option.Some(value), new_line),
+            rest,
+            new_line,
+          )
+        }
+      }
     }
     _ -> #(option.None, list.drop(graphemes, 1), line)
   }
@@ -117,10 +141,19 @@ fn try_match_next(
   }
 }
 
+fn add_value_token(
+  tp: token.TokenType,
+  graphemes: List(String),
+  value: option.Option(String),
+  line: Int,
+) -> option.Option(token.Token) {
+  option.Some(token.new(tp, string.join(graphemes, ""), value, line))
+}
+
 fn add_token(
   tp: token.TokenType,
   graphemes: List(String),
   line: Int,
 ) -> option.Option(token.Token) {
-  option.Some(token.new(tp, string.join(graphemes, ""), option.None, line))
+  add_value_token(tp, graphemes, option.None, line)
 }
