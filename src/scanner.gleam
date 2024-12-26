@@ -6,6 +6,9 @@ import token
 type ScannedToken {
   Single(tp: token.TokenType)
   Double(tp: token.TokenType)
+  Ignored
+  NewLine
+  Comment
   Unknown
 }
 
@@ -55,19 +58,38 @@ fn scan_token(
     "=" -> try_match_next(graphemes, "=", token.EqualEqual, token.Equal)
     ">" -> try_match_next(graphemes, "=", token.GreaterEqual, token.Greater)
     "<" -> try_match_next(graphemes, "=", token.LessEqual, token.Less)
+    "/" -> {
+      case match_next(graphemes, "/") {
+        True -> Comment
+        False -> Single(token.Slash)
+      }
+    }
+    " " | "\r" | "\t" -> Ignored
+    "\n" -> NewLine
     _ -> Unknown
   }
 
   case scanned_token {
     Single(token_type) -> {
       let #(left, right) = list.split(graphemes, 1)
-      #(add_token(token_type, left, line), right, 1)
+      #(add_token(token_type, left, line), right, line)
     }
     Double(token_type) -> {
       let #(left, right) = list.split(graphemes, 2)
-      #(add_token(token_type, left, line), right, 2)
+      #(add_token(token_type, left, line), right, line)
     }
-    _ -> #(option.None, list.drop(graphemes, 1), 1)
+    Comment -> {
+      #(
+        option.None,
+        list.drop_while(graphemes, fn(grapheme) { grapheme != "\n" }),
+        line,
+      )
+    }
+    NewLine -> {
+      let new_line = line + 1
+      #(option.None, list.drop(graphemes, 1), new_line)
+    }
+    _ -> #(option.None, list.drop(graphemes, 1), line)
   }
 }
 
