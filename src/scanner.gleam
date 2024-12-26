@@ -5,16 +5,8 @@ import token
 
 type ScannedToken {
   Single(tp: token.TokenType)
-  Double(tp: token.TokenType, lexeme_tail: String)
+  Double(tp: token.TokenType)
   Unknown
-}
-
-pub opaque type Scanner {
-  Scanner(source: String)
-}
-
-pub fn new(source: String) -> Scanner {
-  Scanner(source)
 }
 
 pub fn scan_tokens(source: String) -> List(token.Token) {
@@ -32,26 +24,22 @@ fn scan_tokens_inner(
   case graphemes {
     [] -> #(scanned_tokens, line)
     _ -> {
-      let token = scan_token(graphemes, line)
-      let #(scanned_tokens, shift) = case token {
-        option.Some(#(new_token, graphemes_read)) -> #(
-          list.append(scanned_tokens, [new_token]),
-          graphemes_read,
-        )
-        _ -> #(scanned_tokens, 1)
+      let #(new_token, rest_graphemes, new_line) = scan_token(graphemes, line)
+
+      let scanned_tokens = case new_token {
+        option.Some(token) -> list.append(scanned_tokens, [token])
+        _ -> scanned_tokens
       }
-      let rest = list.drop(graphemes, shift)
-      scan_tokens_inner(rest, scanned_tokens, 0)
+      scan_tokens_inner(rest_graphemes, scanned_tokens, new_line)
     }
   }
 }
 
 fn scan_token(
-  source: List(String),
+  graphemes: List(String),
   line: Int,
-) -> option.Option(#(token.Token, Int)) {
-  let assert Ok(first) = list.first(source)
-  let rest = list.rest(source)
+) -> #(option.Option(token.Token), List(String), Int) {
+  let assert Ok(first) = list.first(graphemes)
   let scanned_token = case first {
     "(" -> Single(token.LeftParen)
     ")" -> Single(token.RightParen)
@@ -63,45 +51,54 @@ fn scan_token(
     "+" -> Single(token.Plus)
     ";" -> Single(token.Semicolon)
     "*" -> Single(token.Star)
-    "!" -> match(rest, "=", token.BangEqual, token.Bang)
-    "=" -> match(rest, "=", token.EqualEqual, token.Equal)
-    ">" -> match(rest, "=", token.GreaterEqual, token.Greater)
-    "<" -> match(rest, "=", token.LessEqual, token.Less)
+    "!" -> try_match_next(graphemes, "=", token.BangEqual, token.Bang)
+    "=" -> try_match_next(graphemes, "=", token.EqualEqual, token.Equal)
+    ">" -> try_match_next(graphemes, "=", token.GreaterEqual, token.Greater)
+    "<" -> try_match_next(graphemes, "=", token.LessEqual, token.Less)
     _ -> Unknown
   }
 
   case scanned_token {
-    Single(token_type) -> option.Some(add_token(token_type, first, line))
-    Double(token_type, rest) -> {
-      option.Some(add_token(token_type, first <> rest, line))
+    Single(token_type) -> {
+      let #(left, right) = list.split(graphemes, 1)
+      #(add_token(token_type, left, line), right, 1)
     }
-    _ -> option.None
+    Double(token_type) -> {
+      let #(left, right) = list.split(graphemes, 2)
+      #(add_token(token_type, left, line), right, 2)
+    }
+    _ -> #(option.None, list.drop(graphemes, 1), 1)
   }
 }
 
-fn match(
-  source: Result(List(String), Nil),
+fn match_next(graphemes: List(String), expected: String) -> Bool {
+  let graphemes = list.rest(graphemes)
+  case graphemes {
+    Error(_) -> False
+    Ok(data) -> {
+      let assert Ok(next) = list.first(data)
+      next == expected
+    }
+  }
+}
+
+fn try_match_next(
+  graphemes: List(String),
   expected: String,
   true_result: token.TokenType,
   false_result: token.TokenType,
 ) -> ScannedToken {
-  case source {
-    Error(_) -> Unknown
-    Ok(data) -> {
-      let assert Ok(first) = list.first(data)
-      case first == expected {
-        True -> Double(true_result, first)
-        False -> Single(false_result)
-      }
-    }
+  let match_result = match_next(graphemes, expected)
+  case match_result {
+    True -> Double(true_result)
+    False -> Single(false_result)
   }
 }
 
 fn add_token(
   tp: token.TokenType,
-  lexeme: String,
+  graphemes: List(String),
   line: Int,
-) -> #(token.Token, Int) {
-  let shift = string.length(lexeme)
-  #(token.new(tp, lexeme, option.None, line), shift)
+) -> option.Option(token.Token) {
+  option.Some(token.new(tp, string.join(graphemes, ""), option.None, line))
 }
