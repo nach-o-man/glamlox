@@ -1,5 +1,4 @@
 *.beam
 *.ez
 /build
-.github/workflows
 erl_crash.dump
