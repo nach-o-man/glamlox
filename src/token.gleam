@@ -1,5 +1,5 @@
 import gleam/erlang
-import gleam/option
+import gleam/int
 
 pub type TokenType {
   // Single-character tokens.
@@ -52,28 +52,64 @@ pub type TokenType {
   Eof
 }
 
-pub type Token {
-  Token(
-    tp: TokenType,
-    lexeme: String,
-    literal: option.Option(String),
-    line: Int,
-  )
+pub opaque type Token {
+  SingleToken(tp: TokenType, lexeme: String, line: Int)
+  DoubleToken(tp: TokenType, lexeme: String, line: Int)
+  NumberToken(tp: TokenType, lexeme: String, literal: Float, line: Int)
+  StringToken(tp: TokenType, lexeme: String, literal: String, line: Int)
+  EofToken(tp: TokenType, line: Int)
 }
 
-pub fn new(
-  tp: TokenType,
-  lexeme: String,
-  literal: option.Option(String),
-  line: Int,
-) -> Token {
-  Token(tp, lexeme, literal, line)
+pub fn single(tp: TokenType, lexeme: String, line: Int) -> Token {
+  case tp {
+    LeftParen
+    | RightParen
+    | LeftBrace
+    | RightBrace
+    | Comma
+    | Dot
+    | Minus
+    | Plus
+    | Semicolon
+    | Slash
+    | Bang
+    | Equal
+    | Greater
+    | Less
+    | Star -> SingleToken(tp, lexeme, line)
+    _ ->
+      panic as {
+        "Unable to build single token with type: " <> erlang.format(tp)
+      }
+  }
+}
+
+pub fn double(tp: TokenType, lexeme: String, line: Int) -> Token {
+  case tp {
+    BangEqual | EqualEqual | GreaterEqual | LessEqual ->
+      DoubleToken(tp, lexeme, line)
+    _ ->
+      panic as {
+        "Unable to build double token with type: " <> erlang.format(tp)
+      }
+  }
+}
+
+pub fn eof(line: Int) -> Token {
+  EofToken(Eof, line)
+}
+
+pub fn string(lexeme: String, literal: String, line: Int) -> Token {
+  StringToken(String, lexeme, literal, line)
 }
 
 pub fn to_string(token: Token) -> String {
-  erlang.format(token.tp)
-  <> " "
-  <> token.lexeme
-  <> " "
-  <> option.unwrap(token.literal, erlang.format(Nil))
+  case token {
+    SingleToken(tp, lexeme, line)
+    | DoubleToken(tp, lexeme, line)
+    | NumberToken(tp, lexeme, _literal, line)
+    | StringToken(tp, lexeme, _literal, line) ->
+      erlang.format(tp) <> " " <> lexeme <> " " <> int.to_string(line)
+    EofToken(_, line) -> "EOF " <> int.to_string(line)
+  }
 }

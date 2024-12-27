@@ -1,72 +1,44 @@
 import gleam/list
-import gleam/option
 import gleeunit/should
 import scanner
 import token
 
+fn scan_and_map_to_string(input: String) -> List(String) {
+  scanner.scan_tokens(input) |> list.map(token.to_string)
+}
+
 pub fn scan_single_tokens_test() {
-  scanner.scan_tokens("     (){},.-+;=!<>/     ")
-  |> list.map(fn(token) { token.tp })
+  scan_and_map_to_string("     (){},.-+;=!<>/     ")
   |> should.equal([
-    token.LeftParen,
-    token.RightParen,
-    token.LeftBrace,
-    token.RightBrace,
-    token.Comma,
-    token.Dot,
-    token.Minus,
-    token.Plus,
-    token.Semicolon,
-    token.Equal,
-    token.Bang,
-    token.Less,
-    token.Greater,
-    token.Slash,
-    token.Eof,
+    "left_paren ( 0", "right_paren ) 0", "left_brace { 0", "right_brace } 0",
+    "comma , 0", "dot . 0", "minus - 0", "plus + 0", "semicolon ; 0",
+    "equal = 0", "bang ! 0", "less < 0", "greater > 0", "slash / 0", "EOF 0",
   ])
 }
 
 pub fn scan_double_tokens_test() {
-  scanner.scan_tokens("     !!====>=><<=   ")
-  |> list.map(fn(token) { token.tp })
+  scan_and_map_to_string("     !!====>=><<=   ")
   |> should.equal([
-    token.Bang,
-    token.BangEqual,
-    token.EqualEqual,
-    token.Equal,
-    token.GreaterEqual,
-    token.Greater,
-    token.Less,
-    token.LessEqual,
-    token.Eof,
+    "bang ! 0", "bang_equal != 0", "equal_equal == 0", "equal = 0",
+    "greater_equal >= 0", "greater > 0", "less < 0", "less_equal <= 0", "EOF 0",
   ])
 }
 
 pub fn scan_single_line_comment_test() {
-  scanner.scan_tokens(" // I am a comment! \n")
-  |> list.map(fn(token) { #(token.tp, token.line) })
-  |> should.equal([#(token.Eof, 1)])
+  scan_and_map_to_string(" // I am a comment! \n")
+  |> should.equal(["EOF 1"])
 }
 
 pub fn scan_newline_test() {
-  scanner.scan_tokens(" \n \n ")
-  |> list.map(fn(token) { #(token.tp, token.line) })
-  |> should.equal([#(token.Eof, 2)])
+  scan_and_map_to_string(" \n \n ")
+  |> should.equal(["EOF 2"])
 }
 
-// pub fn scan_unterminated_string_test() {
-//   scanner.scan_tokens("\"I am unterminated! ")
-// }
-
 pub fn scan_string_test() {
-  scanner.scan_tokens(" \" I am terminated! \n Also \n I am Multiline! \" \n ")
+  scan_and_map_to_string(
+    " \" I am terminated! \n Also \n I am Multiline! \" \n ",
+  )
   |> should.equal([
-    token.Token(
-      token.String,
-      "\" I am terminated! \n Also \n I am Multiline! \"",
-      option.Some(" I am terminated! \n Also \n I am Multiline! "),
-      2,
-    ),
-    token.Token(token.Eof, "", option.None, 3),
+    "string \" I am terminated! \n Also \n I am Multiline! \" 2", "EOF 3",
   ])
 }
