@@ -10,22 +10,22 @@ fn scan_and_map_to_string(input: String) -> List(String) {
 pub fn scan_single_tokens_test() {
   scan_and_map_to_string("     (){},.-+;=!<>/     ")
   |> should.equal([
-    "left_paren ( 0", "right_paren ) 0", "left_brace { 0", "right_brace } 0",
-    "comma , 0", "dot . 0", "minus - 0", "plus + 0", "semicolon ; 0",
-    "equal = 0", "bang ! 0", "less < 0", "greater > 0", "slash / 0", "EOF 0",
+    "LeftParen ( 0", "RightParen ) 0", "LeftBrace { 0", "RightBrace } 0",
+    "Comma , 0", "Dot . 0", "Minus - 0", "Plus + 0", "Semicolon ; 0",
+    "Equal = 0", "Bang ! 0", "Less < 0", "Greater > 0", "Slash / 0", "EOF 0",
   ])
 }
 
 pub fn scan_double_tokens_test() {
   scan_and_map_to_string("     !!====>=><<=   ")
   |> should.equal([
-    "bang ! 0", "bang_equal != 0", "equal_equal == 0", "equal = 0",
-    "greater_equal >= 0", "greater > 0", "less < 0", "less_equal <= 0", "EOF 0",
+    "Bang ! 0", "BangEqual != 0", "EqualEqual == 0", "Equal = 0",
+    "GreaterEqual >= 0", "Greater > 0", "Less < 0", "LessEqual <= 0", "EOF 0",
   ])
 }
 
-pub fn scan_single_line_comment_test() {
-  scan_and_map_to_string(" // I am a comment! \n")
+pub fn scan_single_line_comment_with_test() {
+  scan_and_map_to_string(" // I am a comment! \n // So am I!")
   |> should.equal(["EOF 1"])
 }
 
@@ -39,6 +39,6 @@ pub fn scan_string_test() {
     " \" I am terminated! \n Also \n I am Multiline! \" \n ",
   )
   |> should.equal([
-    "string \" I am terminated! \n Also \n I am Multiline! \" 2", "EOF 3",
+    "String \" I am terminated! \n Also \n I am Multiline! \" 2", "EOF 3",
   ])
 }

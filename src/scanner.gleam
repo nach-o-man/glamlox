@@ -4,8 +4,8 @@ import gleam/string
 import token
 
 type ScannedToken {
-  Single(tp: token.TokenType)
-  Double(tp: token.TokenType)
+  Single(tp: token.TokenType, lexeme: String)
+  Double(tp: token.TokenType, lexeme: String)
   Ignored
   NewLine
   Comment
@@ -14,130 +14,130 @@ type ScannedToken {
 }
 
 pub fn scan_tokens(source: String) -> List(token.Token) {
-  let graphemes = string.to_graphemes(source)
-  let #(scanned, line) = scan_tokens_inner(graphemes, [], 0)
+  let #(scanned, line) = scan_tokens_inner(source, [], 0)
 
   list.append(scanned, [token.eof(line)])
 }
 
 fn scan_tokens_inner(
-  graphemes: List(String),
+  source: String,
   scanned_tokens: List(token.Token),
   line: Int,
 ) -> #(List(token.Token), Int) {
-  case graphemes {
-    [] -> #(scanned_tokens, line)
+  case source {
+    "" -> #(scanned_tokens, line)
     _ -> {
-      let #(new_token, rest_graphemes, new_line) = scan_token(graphemes, line)
+      let #(new_token, rest_source, new_line) = scan_token(source, line)
 
       let scanned_tokens = case new_token {
         option.Some(token) -> list.append(scanned_tokens, [token])
         _ -> scanned_tokens
       }
-      scan_tokens_inner(rest_graphemes, scanned_tokens, new_line)
+      scan_tokens_inner(rest_source, scanned_tokens, new_line)
     }
   }
 }
 
 fn scan_token(
-  graphemes: List(String),
+  source: String,
   line: Int,
-) -> #(option.Option(token.Token), List(String), Int) {
-  let assert Ok(first) = list.first(graphemes)
+) -> #(option.Option(token.Token), String, Int) {
+  let assert Ok(#(first, rest)) = string.pop_grapheme(source)
   let scanned_token = case first {
-    "(" -> Single(token.LeftParen)
-    ")" -> Single(token.RightParen)
-    "{" -> Single(token.LeftBrace)
-    "}" -> Single(token.RightBrace)
-    "," -> Single(token.Comma)
-    "." -> Single(token.Dot)
-    "-" -> Single(token.Minus)
-    "+" -> Single(token.Plus)
-    ";" -> Single(token.Semicolon)
-    "*" -> Single(token.Star)
-    "!" -> try_match_next(graphemes, "=", token.BangEqual, token.Bang)
-    "=" -> try_match_next(graphemes, "=", token.EqualEqual, token.Equal)
-    ">" -> try_match_next(graphemes, "=", token.GreaterEqual, token.Greater)
-    "<" -> try_match_next(graphemes, "=", token.LessEqual, token.Less)
-    "/" -> {
-      case match_next(graphemes, "/") {
-        True -> Comment
-        False -> Single(token.Slash)
-      }
-    }
+    "(" -> Single(token.LeftParen, first)
+    ")" -> Single(token.RightParen, first)
+    "{" -> Single(token.LeftBrace, first)
+    "}" -> Single(token.RightBrace, first)
+    "," -> Single(token.Comma, first)
+    "." -> Single(token.Dot, first)
+    "-" -> Single(token.Minus, first)
+    "+" -> Single(token.Plus, first)
+    ";" -> Single(token.Semicolon, first)
+    "*" -> Single(token.Star, first)
+    "!" ->
+      ternary(
+        match_next(rest, "="),
+        Double(token.BangEqual, "!="),
+        Single(token.Bang, first),
+      )
+    "=" ->
+      ternary(
+        match_next(rest, "="),
+        Double(token.EqualEqual, "=="),
+        Single(token.Equal, first),
+      )
+    ">" ->
+      ternary(
+        match_next(rest, "="),
+        Double(token.GreaterEqual, ">="),
+        Single(token.Greater, first),
+      )
+    "<" ->
+      ternary(
+        match_next(rest, "="),
+        Double(token.LessEqual, "<="),
+        Single(token.Less, first),
+      )
+    "/" -> ternary(match_next(rest, "/"), Comment, Single(token.Slash, first))
     " " | "\r" | "\t" -> Ignored
     "\n" -> NewLine
     "\"" -> String
     _ -> Unknown
   }
 
-  process_scanned_token(scanned_token, graphemes, line)
+  process_scanned_token(scanned_token, rest, line)
 }
 
 fn process_scanned_token(
   scanned_token: ScannedToken,
-  graphemes: List(String),
+  source: String,
   line,
-) -> #(option.Option(token.Token), List(String), Int) {
+) -> #(option.Option(token.Token), String, Int) {
   case scanned_token {
-    Single(token_type) -> {
-      let #(left, right) = list.split(graphemes, 1)
-      let token = token.single(token_type, string.join(left, ""), line)
-      #(option.Some(token), right, line)
+    Single(tp, lex) -> {
+      let token = token.single(tp, lex, line)
+      #(option.Some(token), source, line)
     }
-    Double(token_type) -> {
-      let #(left, right) = list.split(graphemes, 2)
-      let token = token.double(token_type, string.join(left, ""), line)
-      #(option.Some(token), right, line)
+    Double(tp, lex) -> {
+      let token = token.double(tp, lex, line)
+      // since second symbol of token is in the source
+      let new_rest = string.drop_start(source, 1)
+      #(option.Some(token), new_rest, line)
     }
     Comment -> {
-      #(option.None, list.drop_while(graphemes, fn(gr) { gr != "\n" }), line)
+      case string.split_once(source, "\n") {
+        Error(_) -> #(option.None, "", line)
+        Ok(#(_left, right)) -> #(option.None, right, line + 1)
+      }
     }
     NewLine -> {
-      let new_line = line + 1
-      #(option.None, list.drop(graphemes, 1), new_line)
+      #(option.None, source, line + 1)
     }
     String -> {
-      let #(left_quote, rest) = list.split(graphemes, 1)
-      let #(data, right) = list.split_while(rest, fn(gr) { gr != "\"" })
-      case right {
-        [] -> panic as "Unterminated string."
-        _ -> {
-          let #(right_quote, rest) = list.split(right, 1)
-          let lexeme =
-            list.append(left_quote, data)
-            |> list.append(right_quote)
-            |> string.join("")
-          let value = string.join(data, "")
-          let new_line = list.count(data, fn(gr) { gr == "\n" }) + line
-          #(option.Some(token.string(lexeme, value, new_line)), rest, new_line)
+      case string.split_once(source, "\"") {
+        Error(_) -> panic as "Unterminated string"
+        Ok(#(left, right)) -> {
+          let new_line =
+            list.count(string.to_graphemes(left), fn(str) { str == "\n" })
+          let token = token.string("\"" <> left <> "\"", left, new_line)
+          #(option.Some(token), right, new_line)
         }
       }
     }
-    _ -> #(option.None, list.drop(graphemes, 1), line)
+    _ -> #(option.None, source, line)
   }
 }
 
-fn match_next(graphemes: List(String), expected: String) -> Bool {
-  let graphemes = list.rest(graphemes)
-  case graphemes {
+fn match_next(source: String, expected: String) -> Bool {
+  case string.first(source) {
     Error(_) -> False
-    Ok(data) -> {
-      let assert Ok(next) = list.first(data)
-      next == expected
-    }
+    Ok(data) -> data == expected
   }
 }
 
-fn try_match_next(
-  graphemes: List(String),
-  expected: String,
-  true_result: token.TokenType,
-  false_result: token.TokenType,
-) -> ScannedToken {
-  let match_result = match_next(graphemes, expected)
-  case match_result {
-    True -> Double(true_result)
-    False -> Single(false_result)
+fn ternary(condition: Bool, true_result: value, false_result: value) -> value {
+  case condition {
+    True -> true_result
+    False -> false_result
   }
 }

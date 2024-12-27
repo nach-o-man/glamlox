@@ -1,5 +1,5 @@
-import gleam/erlang
 import gleam/int
+import gleam/string
 
 pub type TokenType {
   // Single-character tokens.
@@ -79,7 +79,7 @@ pub fn single(tp: TokenType, lexeme: String, line: Int) -> Token {
     | Star -> SingleToken(tp, lexeme, line)
     _ ->
       panic as {
-        "Unable to build single token with type: " <> erlang.format(tp)
+        "Unable to build single token with type: " <> string.inspect(tp)
       }
   }
 }
@@ -90,7 +90,7 @@ pub fn double(tp: TokenType, lexeme: String, line: Int) -> Token {
       DoubleToken(tp, lexeme, line)
     _ ->
       panic as {
-        "Unable to build double token with type: " <> erlang.format(tp)
+        "Unable to build double token with type: " <> string.inspect(tp)
       }
   }
 }
@@ -109,7 +109,7 @@ pub fn to_string(token: Token) -> String {
     | DoubleToken(tp, lexeme, line)
     | NumberToken(tp, lexeme, _literal, line)
     | StringToken(tp, lexeme, _literal, line) ->
-      erlang.format(tp) <> " " <> lexeme <> " " <> int.to_string(line)
+      string.inspect(tp) <> " " <> lexeme <> " " <> int.to_string(line)
     EofToken(_, line) -> "EOF " <> int.to_string(line)
   }
 }
