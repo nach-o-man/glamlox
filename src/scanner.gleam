@@ -10,6 +10,7 @@ type ScannedToken {
   Ignored
   NewLine
   Comment
+  CommentBlock
   String
   Number(first: String)
   Identifier(first: String)
@@ -81,7 +82,12 @@ fn scan_token(
         Double(token.LessEqual, "<="),
         Single(token.Less, first),
       )
-    "/" -> ternary(match_next(rest, "/"), Comment, Single(token.Slash, first))
+    "/" ->
+      ternary(
+        match_next(rest, "/"),
+        Comment,
+        ternary(match_next(rest, "*"), CommentBlock, Single(token.Slash, first)),
+      )
     " " | "\r" | "\t" -> Ignored
     "\n" -> NewLine
     "\"" -> String
@@ -99,6 +105,10 @@ fn scan_token(
   }
 
   process_scanned_token(scanned_token, rest, line)
+}
+
+fn line_shift(source: String) -> Int {
+  list.count(string.to_graphemes(source), fn(str) { str == "\n" })
 }
 
 fn process_scanned_token(
@@ -123,6 +133,15 @@ fn process_scanned_token(
         Ok(#(_left, right)) -> #(Error(Nil), right, line + 1)
       }
     }
+    CommentBlock -> {
+      case string.split_once(source, "*/") {
+        Error(_) -> panic as "Unterminated comment block"
+        Ok(#(left, right)) -> {
+          let new_line = line_shift(left) + line
+          #(Error(Nil), right, new_line)
+        }
+      }
+    }
     NewLine -> {
       #(Error(Nil), source, line + 1)
     }
@@ -130,8 +149,7 @@ fn process_scanned_token(
       case string.split_once(source, "\"") {
         Error(_) -> panic as "Unterminated string"
         Ok(#(left, right)) -> {
-          let new_line =
-            list.count(string.to_graphemes(left), fn(str) { str == "\n" })
+          let new_line = line_shift(left) + line
           let token = token.string("\"" <> left <> "\"", left, new_line)
           #(Ok(token), right, new_line)
         }

@@ -36,10 +36,10 @@ pub fn scan_newline_test() {
 
 pub fn scan_string_test() {
   scan_and_map_to_string(
-    " \" I am terminated! \n Also \n I am Multiline! \" \n ",
+    "\n \" I am terminated! \n Also \n I am Multiline! \" \n ",
   )
   |> should.equal([
-    "String \" I am terminated! \n Also \n I am Multiline! \" 2", "EOF 3",
+    "String \" I am terminated! \n Also \n I am Multiline! \" 3", "EOF 4",
   ])
 }
 
@@ -77,4 +77,11 @@ pub fn scan_identifiers_test() {
     "Identifier if_only 0", "Identifier i18n 0", "Identifier was_ 1",
     "Identifier _a 1", "Identifier truekeyword 1", "EOF 1",
   ])
+}
+
+pub fn scan_comment_block_test() {
+  scan_and_map_to_string(
+    "\nHello /* I am \n a \n multiline \n comment */ World",
+  )
+  |> should.equal(["Identifier Hello 1", "Identifier World 4", "EOF 4"])
 }
