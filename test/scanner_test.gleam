@@ -44,7 +44,7 @@ pub fn scan_string_test() {
 }
 
 pub fn scan_integer_test() {
-  scan_and_map_to_string("123a 456\n 7 8 9")
+  scan_and_map_to_string("123 456\n 7 8 9")
   |> should.equal([
     "Number 123 0", "Number 456 0", "Number 7 1", "Number 8 1", "Number 9 1",
     "EOF 1",
@@ -52,9 +52,29 @@ pub fn scan_integer_test() {
 }
 
 pub fn scan_float_test() {
-  scan_and_map_to_string("12.3a 4.56\n .7 8.")
+  scan_and_map_to_string("12.3 4.56\n .7 8.")
   |> should.equal([
     "Number 12.3 0", "Number 4.56 0", "Dot . 1", "Number 7 1", "Number 8 1",
     "Dot . 1", "EOF 1",
+  ])
+}
+
+pub fn scan_keyword_test() {
+  scan_and_map_to_string(
+    "and class else\nfalse for\tfun if nil or print return super \n this true var while",
+  )
+  |> should.equal([
+    "And and 0", "Class class 0", "Else else 0", "False false 1", "For for 1",
+    "Fun fun 1", "If if 1", "Nil nil 1", "Or or 1", "Print print 1",
+    "Return return 1", "Super super 1", "This this 2", "True true 2",
+    "Var var 2", "While while 2", "EOF 2",
+  ])
+}
+
+pub fn scan_identifiers_test() {
+  scan_and_map_to_string("if_only i18n\n was_ _a truekeyword")
+  |> should.equal([
+    "Identifier if_only 0", "Identifier i18n 0", "Identifier was_ 1",
+    "Identifier _a 1", "Identifier truekeyword 1", "EOF 1",
   ])
 }

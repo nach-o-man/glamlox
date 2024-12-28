@@ -12,6 +12,7 @@ type ScannedToken {
   Comment
   String
   Number(first: String)
+  Identifier(first: String)
   Unknown
 }
 
@@ -86,8 +87,13 @@ fn scan_token(
     "\"" -> String
     _ as other -> {
       case is_digit(other) {
-        True -> Number(first)
-        False -> Unknown
+        True -> Number(other)
+        False -> {
+          case is_alpha(other) {
+            True -> Identifier(other)
+            False -> Unknown
+          }
+        }
       }
     }
   }
@@ -137,7 +143,36 @@ fn process_scanned_token(
       let token = token.number(result, line)
       #(option.Some(token), rest_source, line)
     }
+    Identifier(start) -> {
+      let #(maybe_keyword, rest_source) =
+        read_identifier(source, string_tree.from_string(start))
+      let token = case check_keyword(maybe_keyword) {
+        Ok(keyword_type) -> token.keyword(keyword_type, maybe_keyword, line)
+        Error(_) -> token.identifier(maybe_keyword, line)
+      }
+      #(option.Some(token), rest_source, line)
+    }
     _ -> #(option.None, source, line)
+  }
+}
+
+fn read_identifier(
+  source: String,
+  accumulator: string_tree.StringTree,
+) -> #(String, String) {
+  let tested = string.pop_grapheme(source)
+  case tested {
+    Error(_) -> #(string_tree.to_string(accumulator), source)
+    Ok(#(maybe_alphanumeric, rest_source)) -> {
+      case is_alphanumeric(maybe_alphanumeric) {
+        True ->
+          read_identifier(
+            rest_source,
+            string_tree.append(accumulator, maybe_alphanumeric),
+          )
+        False -> #(string_tree.to_string(accumulator), source)
+      }
+    }
   }
 }
 
@@ -186,12 +221,100 @@ fn ternary(condition: Bool, true_result: value, false_result: value) -> value {
 }
 
 fn is_digit(source: String) -> Bool {
-  case string.length(source) {
-    1 ->
-      case source {
-        "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "0" -> True
-        _ -> False
-      }
-    _ -> panic as "is_digit should be called with with single length string"
+  case assert_single_character(source) {
+    "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "0" -> True
+    _ -> False
+  }
+}
+
+fn is_alpha(source: String) -> Bool {
+  case assert_single_character(source) {
+    "A"
+    | "B"
+    | "C"
+    | "D"
+    | "E"
+    | "F"
+    | "G"
+    | "H"
+    | "I"
+    | "J"
+    | "K"
+    | "L"
+    | "M"
+    | "N"
+    | "O"
+    | "P"
+    | "Q"
+    | "R"
+    | "S"
+    | "T"
+    | "U"
+    | "V"
+    | "W"
+    | "X"
+    | "Y"
+    | "Z"
+    | "a"
+    | "b"
+    | "c"
+    | "d"
+    | "e"
+    | "f"
+    | "g"
+    | "h"
+    | "i"
+    | "j"
+    | "k"
+    | "l"
+    | "m"
+    | "n"
+    | "o"
+    | "p"
+    | "q"
+    | "r"
+    | "s"
+    | "t"
+    | "u"
+    | "v"
+    | "w"
+    | "x"
+    | "y"
+    | "z"
+    | "_" -> True
+    _ -> False
+  }
+}
+
+fn is_alphanumeric(source: String) -> Bool {
+  is_digit(source) || is_alpha(source)
+}
+
+fn check_keyword(source: String) -> Result(token.TokenType, Nil) {
+  case source {
+    "and" -> Ok(token.And)
+    "class" -> Ok(token.Class)
+    "else" -> Ok(token.Else)
+    "false" -> Ok(token.False)
+    "for" -> Ok(token.For)
+    "fun" -> Ok(token.Fun)
+    "if" -> Ok(token.If)
+    "nil" -> Ok(token.Nil)
+    "or" -> Ok(token.Or)
+    "print" -> Ok(token.Print)
+    "return" -> Ok(token.Return)
+    "super" -> Ok(token.Super)
+    "this" -> Ok(token.This)
+    "true" -> Ok(token.True)
+    "var" -> Ok(token.Var)
+    "while" -> Ok(token.While)
+    _ -> Error(Nil)
+  }
+}
+
+fn assert_single_character(maybe_single: String) -> String {
+  case string.length(maybe_single) {
+    1 -> maybe_single
+    _ -> panic as "function should be called with with single length string"
   }
 }

@@ -59,7 +59,38 @@ pub opaque type Token {
   IntegerToken(tp: TokenType, lexeme: String, literal: Int, line: Int)
   FloatToken(tp: TokenType, lexeme: String, literal: Float, line: Int)
   StringToken(tp: TokenType, lexeme: String, literal: String, line: Int)
+  IdentifierToken(tp: TokenType, lexeme: String, line: Int)
+  KeywordToken(tp: TokenType, lexeme: String, line: Int)
   EofToken(tp: TokenType, line: Int)
+}
+
+pub fn identifier(lexeme: String, line: Int) -> Token {
+  IdentifierToken(Identifier, lexeme, line)
+}
+
+pub fn keyword(tp: TokenType, lexeme: String, line: Int) -> Token {
+  case tp {
+    And
+    | Class
+    | Else
+    | False
+    | Fun
+    | For
+    | If
+    | Nil
+    | Or
+    | Print
+    | Return
+    | Super
+    | This
+    | True
+    | Var
+    | While -> KeywordToken(tp, lexeme, line)
+    _ ->
+      panic as {
+        "Unable to build keyword token with type: " <> string.inspect(tp)
+      }
+  }
 }
 
 pub fn single(tp: TokenType, lexeme: String, line: Int) -> Token {
@@ -123,7 +154,9 @@ pub fn to_string(token: Token) -> String {
     | DoubleToken(tp, lexeme, line)
     | IntegerToken(tp, lexeme, _literal, line)
     | FloatToken(tp, lexeme, _literal, line)
-    | StringToken(tp, lexeme, _literal, line) ->
+    | StringToken(tp, lexeme, _literal, line)
+    | IdentifierToken(tp, lexeme, line)
+    | KeywordToken(tp, lexeme, line) ->
       string.inspect(tp) <> " " <> lexeme <> " " <> int.to_string(line)
     EofToken(_, line) -> "EOF " <> int.to_string(line)
   }

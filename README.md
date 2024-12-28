@@ -3,7 +3,7 @@
 [![Package Version](https://img.shields.io/hexpm/v/glamlox)](https://hex.pm/packages/glamlox)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/glamlox/)
 
-Gleam implementationf on the interpreter for the Lox language.
+Gleam implementation of the interpreter for the Lox language.
 https://craftinginterpreters.com/
 
 
