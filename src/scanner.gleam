@@ -1,5 +1,5 @@
+import gleam/int
 import gleam/list
-import gleam/option
 import gleam/string
 import gleam/string_tree
 import token
@@ -13,7 +13,7 @@ type ScannedToken {
   String
   Number(first: String)
   Identifier(first: String)
-  Unknown
+  Unexpected(val: String, line: Int)
 }
 
 pub fn scan_tokens(source: String) -> List(token.Token) {
@@ -33,7 +33,7 @@ fn scan_tokens_inner(
       let #(new_token, rest_source, new_line) = scan_token(source, line)
 
       let scanned_tokens = case new_token {
-        option.Some(token) -> list.append(scanned_tokens, [token])
+        Ok(token) -> list.append(scanned_tokens, [token])
         _ -> scanned_tokens
       }
       scan_tokens_inner(rest_source, scanned_tokens, new_line)
@@ -44,7 +44,7 @@ fn scan_tokens_inner(
 fn scan_token(
   source: String,
   line: Int,
-) -> #(option.Option(token.Token), String, Int) {
+) -> #(Result(token.Token, Nil), String, Int) {
   let assert Ok(#(first, rest)) = string.pop_grapheme(source)
   let scanned_token = case first {
     "(" -> Single(token.LeftParen, first)
@@ -91,7 +91,7 @@ fn scan_token(
         False -> {
           case is_alpha(other) {
             True -> Identifier(other)
-            False -> Unknown
+            False -> Unexpected(other, line)
           }
         }
       }
@@ -105,26 +105,26 @@ fn process_scanned_token(
   scanned_token: ScannedToken,
   source: String,
   line,
-) -> #(option.Option(token.Token), String, Int) {
+) -> #(Result(token.Token, Nil), String, Int) {
   case scanned_token {
     Single(tp, lex) -> {
       let token = token.single(tp, lex, line)
-      #(option.Some(token), source, line)
+      #(Ok(token), source, line)
     }
     Double(tp, lex) -> {
       let token = token.double(tp, lex, line)
       // since second symbol of token is in the source
       let new_rest = string.drop_start(source, 1)
-      #(option.Some(token), new_rest, line)
+      #(Ok(token), new_rest, line)
     }
     Comment -> {
       case string.split_once(source, "\n") {
-        Error(_) -> #(option.None, "", line)
-        Ok(#(_left, right)) -> #(option.None, right, line + 1)
+        Error(_) -> #(Error(Nil), "", line)
+        Ok(#(_left, right)) -> #(Error(Nil), right, line + 1)
       }
     }
     NewLine -> {
-      #(option.None, source, line + 1)
+      #(Error(Nil), source, line + 1)
     }
     String -> {
       case string.split_once(source, "\"") {
@@ -133,7 +133,7 @@ fn process_scanned_token(
           let new_line =
             list.count(string.to_graphemes(left), fn(str) { str == "\n" })
           let token = token.string("\"" <> left <> "\"", left, new_line)
-          #(option.Some(token), right, new_line)
+          #(Ok(token), right, new_line)
         }
       }
     }
@@ -141,7 +141,7 @@ fn process_scanned_token(
       let #(result, rest_source) =
         read_number(source, string_tree.from_string(start))
       let token = token.number(result, line)
-      #(option.Some(token), rest_source, line)
+      #(Ok(token), rest_source, line)
     }
     Identifier(start) -> {
       let #(maybe_keyword, rest_source) =
@@ -150,9 +150,13 @@ fn process_scanned_token(
         Ok(keyword_type) -> token.keyword(keyword_type, maybe_keyword, line)
         Error(_) -> token.identifier(maybe_keyword, line)
       }
-      #(option.Some(token), rest_source, line)
+      #(Ok(token), rest_source, line)
     }
-    _ -> #(option.None, source, line)
+    Ignored -> #(Error(Nil), source, line)
+    Unexpected(data, line) ->
+      panic as {
+        "Unexpected character on line " <> int.to_string(line) <> " : " <> data
+      }
   }
 }
 
