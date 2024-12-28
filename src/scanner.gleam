@@ -1,6 +1,7 @@
 import gleam/list
 import gleam/option
 import gleam/string
+import gleam/string_tree
 import token
 
 type ScannedToken {
@@ -10,6 +11,7 @@ type ScannedToken {
   NewLine
   Comment
   String
+  Number(first: String)
   Unknown
 }
 
@@ -82,7 +84,12 @@ fn scan_token(
     " " | "\r" | "\t" -> Ignored
     "\n" -> NewLine
     "\"" -> String
-    _ -> Unknown
+    _ as other -> {
+      case is_digit(other) {
+        True -> Number(first)
+        False -> Unknown
+      }
+    }
   }
 
   process_scanned_token(scanned_token, rest, line)
@@ -124,7 +131,43 @@ fn process_scanned_token(
         }
       }
     }
+    Number(start) -> {
+      let #(result, rest_source) =
+        read_number(source, string_tree.from_string(start))
+      let token = token.number(result, line)
+      #(option.Some(token), rest_source, line)
+    }
     _ -> #(option.None, source, line)
+  }
+}
+
+fn read_number(
+  source: String,
+  accumulator: string_tree.StringTree,
+) -> #(String, String) {
+  let tested = string.pop_grapheme(source)
+  case tested {
+    Error(_) -> #(string_tree.to_string(accumulator), source)
+    Ok(#(maybe_digit, rest_source)) -> {
+      case is_digit(maybe_digit) {
+        True ->
+          read_number(rest_source, string_tree.append(accumulator, maybe_digit))
+        False -> {
+          case maybe_digit {
+            "." ->
+              case string.first(rest_source) {
+                Error(_) -> #(string_tree.to_string(accumulator), source)
+                Ok(_) ->
+                  read_number(
+                    rest_source,
+                    string_tree.append(accumulator, maybe_digit),
+                  )
+              }
+            _ -> #(string_tree.to_string(accumulator), source)
+          }
+        }
+      }
+    }
   }
 }
 
@@ -139,5 +182,16 @@ fn ternary(condition: Bool, true_result: value, false_result: value) -> value {
   case condition {
     True -> true_result
     False -> false_result
+  }
+}
+
+fn is_digit(source: String) -> Bool {
+  case string.length(source) {
+    1 ->
+      case source {
+        "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "0" -> True
+        _ -> False
+      }
+    _ -> panic as "is_digit should be called with with single length string"
   }
 }

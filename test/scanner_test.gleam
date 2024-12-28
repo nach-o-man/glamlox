@@ -42,3 +42,19 @@ pub fn scan_string_test() {
     "String \" I am terminated! \n Also \n I am Multiline! \" 2", "EOF 3",
   ])
 }
+
+pub fn scan_integer_test() {
+  scan_and_map_to_string("123a 456\n 7 8 9")
+  |> should.equal([
+    "Number 123 0", "Number 456 0", "Number 7 1", "Number 8 1", "Number 9 1",
+    "EOF 1",
+  ])
+}
+
+pub fn scan_float_test() {
+  scan_and_map_to_string("12.3a 4.56\n .7 8.")
+  |> should.equal([
+    "Number 12.3 0", "Number 4.56 0", "Dot . 1", "Number 7 1", "Number 8 1",
+    "Dot . 1", "EOF 1",
+  ])
+}
