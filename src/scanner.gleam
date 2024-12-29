@@ -1,4 +1,4 @@
-import gleam/int
+import error
 import gleam/list
 import gleam/string
 import gleam/string_tree
@@ -14,7 +14,7 @@ type ScannedToken {
   String
   Number(first: String)
   Identifier(first: String)
-  Unexpected(val: String, line: Int)
+  Unexpected(value: String, line: Int)
 }
 
 pub fn scan_tokens(source: String) -> List(token.Token) {
@@ -97,7 +97,7 @@ fn scan_token(
         False -> {
           case is_alpha(other) {
             True -> Identifier(other)
-            False -> Unexpected(other, line)
+            False -> Unexpected(first, line)
           }
         }
       }
@@ -135,7 +135,7 @@ fn process_scanned_token(
     }
     CommentBlock -> {
       case string.split_once(source, "*/") {
-        Error(_) -> panic as "Unterminated comment block"
+        Error(_) -> error.error(line, "Unterminated comment block")
         Ok(#(left, right)) -> {
           let new_line = line_shift(left) + line
           #(Error(Nil), right, new_line)
@@ -147,7 +147,7 @@ fn process_scanned_token(
     }
     String -> {
       case string.split_once(source, "\"") {
-        Error(_) -> panic as "Unterminated string"
+        Error(_) -> error.error(line, "Unterminated string")
         Ok(#(left, right)) -> {
           let new_line = line_shift(left) + line
           let token = token.string("\"" <> left <> "\"", left, new_line)
@@ -171,10 +171,8 @@ fn process_scanned_token(
       #(Ok(token), rest_source, line)
     }
     Ignored -> #(Error(Nil), source, line)
-    Unexpected(data, line) ->
-      panic as {
-        "Unexpected character on line " <> int.to_string(line) <> " : " <> data
-      }
+    Unexpected(value, line) ->
+      error.error(line, "Unexpected character " <> value <> ".")
   }
 }
 
