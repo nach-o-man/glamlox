@@ -13,14 +13,18 @@ pub fn main() {
       run_file(script)
     }
     [] -> {
-      io.println("")
-      io.println("========================================")
-      io.println("Entering REPL mode. Type 'exit' to exit.")
-      io.println("========================================")
+      repl_header()
       run_prompt()
     }
     _ -> io.print("Usage: glamlox [script FILE]")
   }
+}
+
+fn repl_header() {
+  io.println("")
+  io.println("========================================")
+  io.println("Entering REPL mode. Type 'exit' to exit.")
+  io.println("========================================")
 }
 
 fn run_file(script: String) {

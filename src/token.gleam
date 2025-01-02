@@ -61,11 +61,15 @@ pub opaque type Token {
   StringToken(tp: TokenType, lexeme: String, literal: String, line: Int)
   IdentifierToken(tp: TokenType, lexeme: String, line: Int)
   KeywordToken(tp: TokenType, lexeme: String, line: Int)
-  EofToken(tp: TokenType, line: Int)
+  EofToken(tp: TokenType, lexeme: String, line: Int)
 }
 
 pub fn identifier(lexeme: String, line: Int) -> Token {
   IdentifierToken(Identifier, lexeme, line)
+}
+
+pub fn lexeme(token: Token) -> String {
+  token.lexeme
 }
 
 pub fn keyword(tp: TokenType, lexeme: String, line: Int) -> Token {
@@ -129,7 +133,7 @@ pub fn double(tp: TokenType, lexeme: String, line: Int) -> Token {
 }
 
 pub fn eof(line: Int) -> Token {
-  EofToken(Eof, line)
+  EofToken(Eof, "", line)
 }
 
 pub fn string(lexeme: String, literal: String, line: Int) -> Token {
@@ -158,6 +162,6 @@ pub fn to_string(token: Token) -> String {
     | IdentifierToken(tp, lexeme, line)
     | KeywordToken(tp, lexeme, line) ->
       string.inspect(tp) <> " " <> lexeme <> " " <> int.to_string(line)
-    EofToken(_, line) -> "EOF " <> int.to_string(line)
+    EofToken(_, _, line) -> "EOF " <> int.to_string(line)
   }
 }
