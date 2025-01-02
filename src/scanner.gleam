@@ -18,12 +18,12 @@ type ScannedToken {
 }
 
 pub fn scan_tokens(source: String) -> List(token.Token) {
-  let #(scanned, line) = scan_tokens_inner(source, [], 0)
+  let #(scanned, line) = scan_tokens_recursive(source, [], 0)
 
-  list.append(scanned, [token.eof(line)])
+  list.reverse([token.eof(line), ..scanned])
 }
 
-fn scan_tokens_inner(
+fn scan_tokens_recursive(
   source: String,
   scanned_tokens: List(token.Token),
   line: Int,
@@ -34,10 +34,10 @@ fn scan_tokens_inner(
       let #(new_token, rest_source, new_line) = scan_token(source, line)
 
       let scanned_tokens = case new_token {
-        Ok(token) -> list.append(scanned_tokens, [token])
+        Ok(token) -> [token, ..scanned_tokens]
         _ -> scanned_tokens
       }
-      scan_tokens_inner(rest_source, scanned_tokens, new_line)
+      scan_tokens_recursive(rest_source, scanned_tokens, new_line)
     }
   }
 }
