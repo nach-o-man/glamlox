@@ -27,7 +27,19 @@ pub fn parse(tokens: List(token.Token)) -> expr.Expr {
 }
 
 fn parse_recursive(iteration: ParseIteration) -> #(expr.Expr, ParseIteration) {
-  factor_expr(iteration)
+  term_expr(iteration)
+}
+
+fn term_expr(iteration: ParseIteration) -> #(expr.Expr, ParseIteration) {
+  let #(new_expr, next_iter) = factor_expr(iteration)
+  let ParseIteration(left, current, right) = next_iter
+  case token.tp(current) {
+    token_type.Plus | token_type.Minus -> {
+      let #(right_expr, next_iter) = factor_expr(next_iteration(left, right))
+      #(expr.Binary(new_expr, current, right_expr), next_iter)
+    }
+    _ -> #(new_expr, next_iter)
+  }
 }
 
 fn factor_expr(iteration: ParseIteration) -> #(expr.Expr, ParseIteration) {
