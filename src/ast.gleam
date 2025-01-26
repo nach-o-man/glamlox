@@ -1,4 +1,5 @@
 import expr
+import gleam/bool
 import gleam/float
 import gleam/int
 import gleam/string_tree
@@ -10,6 +11,7 @@ pub fn print_expr(expr: expr.Expr) -> String {
     expr.StringLiteral(val) -> val
     expr.FloatLiteral(val) -> float.to_string(val)
     expr.IntLiteral(val) -> int.to_string(val)
+    expr.BoolLiteral(val) -> bool.to_string(val)
     expr.Grouping(ex) -> parenthesise_recursive("(group", [ex])
     expr.Unary(op, r) -> parenthesise_recursive("(" <> token.lexeme(op), [r])
     expr.Binary(l, op, r) ->
