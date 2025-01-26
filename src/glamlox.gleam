@@ -1,11 +1,11 @@
 import argv
+import ast
 import gleam/erlang
 import gleam/io
-import gleam/list
 import gleam/string
+import parser
 import scanner
 import simplifile
-import token
 
 pub fn main() {
   case argv.load().arguments {
@@ -33,8 +33,7 @@ fn run_file(script: String) {
 }
 
 fn run(source: String) {
-  let tokens = scanner.scan_tokens(source)
-  list.each(tokens, fn(token) { io.println(token.to_string(token)) })
+  scanner.scan_tokens(source) |> parser.parse |> ast.print_expr |> io.println
 }
 
 fn run_prompt() {

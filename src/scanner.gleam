@@ -3,10 +3,11 @@ import gleam/list
 import gleam/string
 import gleam/string_tree
 import token
+import token_type
 
 type ScannedToken {
-  Single(tp: token.TokenType, lexeme: String)
-  Double(tp: token.TokenType, lexeme: String)
+  Single(tp: token_type.TokenType, lexeme: String)
+  Double(tp: token_type.TokenType, lexeme: String)
   Ignored
   NewLine
   Comment
@@ -48,45 +49,49 @@ fn scan_token(
 ) -> #(Result(token.Token, Nil), String, Int) {
   let assert Ok(#(first, rest)) = string.pop_grapheme(source)
   let scanned_token = case first {
-    "(" -> Single(token.LeftParen, first)
-    ")" -> Single(token.RightParen, first)
-    "{" -> Single(token.LeftBrace, first)
-    "}" -> Single(token.RightBrace, first)
-    "," -> Single(token.Comma, first)
-    "." -> Single(token.Dot, first)
-    "-" -> Single(token.Minus, first)
-    "+" -> Single(token.Plus, first)
-    ";" -> Single(token.Semicolon, first)
-    "*" -> Single(token.Star, first)
+    "(" -> Single(token_type.LeftParen, first)
+    ")" -> Single(token_type.RightParen, first)
+    "{" -> Single(token_type.LeftBrace, first)
+    "}" -> Single(token_type.RightBrace, first)
+    "," -> Single(token_type.Comma, first)
+    "." -> Single(token_type.Dot, first)
+    "-" -> Single(token_type.Minus, first)
+    "+" -> Single(token_type.Plus, first)
+    ";" -> Single(token_type.Semicolon, first)
+    "*" -> Single(token_type.Star, first)
     "!" ->
       ternary(
         match_next(rest, "="),
-        Double(token.BangEqual, "!="),
-        Single(token.Bang, first),
+        Double(token_type.BangEqual, "!="),
+        Single(token_type.Bang, first),
       )
     "=" ->
       ternary(
         match_next(rest, "="),
-        Double(token.EqualEqual, "=="),
-        Single(token.Equal, first),
+        Double(token_type.EqualEqual, "=="),
+        Single(token_type.Equal, first),
       )
     ">" ->
       ternary(
         match_next(rest, "="),
-        Double(token.GreaterEqual, ">="),
-        Single(token.Greater, first),
+        Double(token_type.GreaterEqual, ">="),
+        Single(token_type.Greater, first),
       )
     "<" ->
       ternary(
         match_next(rest, "="),
-        Double(token.LessEqual, "<="),
-        Single(token.Less, first),
+        Double(token_type.LessEqual, "<="),
+        Single(token_type.Less, first),
       )
     "/" ->
       ternary(
         match_next(rest, "/"),
         Comment,
-        ternary(match_next(rest, "*"), CommentBlock, Single(token.Slash, first)),
+        ternary(
+          match_next(rest, "*"),
+          CommentBlock,
+          Single(token_type.Slash, first),
+        ),
       )
     " " | "\r" | "\t" -> Ignored
     "\n" -> NewLine
@@ -310,24 +315,24 @@ fn is_alphanumeric(source: String) -> Bool {
   is_digit(source) || is_alpha(source)
 }
 
-fn check_keyword(source: String) -> Result(token.TokenType, Nil) {
+fn check_keyword(source: String) -> Result(token_type.TokenType, Nil) {
   case source {
-    "and" -> Ok(token.And)
-    "class" -> Ok(token.Class)
-    "else" -> Ok(token.Else)
-    "false" -> Ok(token.False)
-    "for" -> Ok(token.For)
-    "fun" -> Ok(token.Fun)
-    "if" -> Ok(token.If)
-    "nil" -> Ok(token.Nil)
-    "or" -> Ok(token.Or)
-    "print" -> Ok(token.Print)
-    "return" -> Ok(token.Return)
-    "super" -> Ok(token.Super)
-    "this" -> Ok(token.This)
-    "true" -> Ok(token.True)
-    "var" -> Ok(token.Var)
-    "while" -> Ok(token.While)
+    "and" -> Ok(token_type.And)
+    "class" -> Ok(token_type.Class)
+    "else" -> Ok(token_type.Else)
+    "false" -> Ok(token_type.False)
+    "for" -> Ok(token_type.For)
+    "fun" -> Ok(token_type.Fun)
+    "if" -> Ok(token_type.If)
+    "nil" -> Ok(token_type.Nil)
+    "or" -> Ok(token_type.Or)
+    "print" -> Ok(token_type.Print)
+    "return" -> Ok(token_type.Return)
+    "super" -> Ok(token_type.Super)
+    "this" -> Ok(token_type.This)
+    "true" -> Ok(token_type.True)
+    "var" -> Ok(token_type.Var)
+    "while" -> Ok(token_type.While)
     _ -> Error(Nil)
   }
 }
