@@ -11,6 +11,9 @@ type ParseIteration {
   )
 }
 
+type ExpressionIteration =
+  #(expr.Expr, ParseIteration)
+
 fn next_iteration(
   left: List(token.Token),
   right: List(token.Token),
@@ -28,25 +31,48 @@ pub fn parse(tokens: List(token.Token)) -> expr.Expr {
   }
 }
 
-fn parse_recursive(iteration: ParseIteration) -> #(expr.Expr, ParseIteration) {
+fn parse_recursive(iteration: ParseIteration) -> ExpressionIteration {
   equality_expr(iteration)
 }
 
-fn equality_expr(iteration: ParseIteration) -> #(expr.Expr, ParseIteration) {
-  let #(new_expr, next_iter) = comparison_expr(iteration)
+fn equality_expr(iteration: ParseIteration) -> ExpressionIteration {
+  iteration |> comparison_expr |> equality_expr_recursive
+}
+
+fn comparison_expr(iteration: ParseIteration) -> ExpressionIteration {
+  iteration |> term_expr |> comparison_expr_recursive
+}
+
+fn term_expr(iteration: ParseIteration) -> ExpressionIteration {
+  iteration |> factor_expr |> term_expr_recursive
+}
+
+fn factor_expr(iteration: ParseIteration) -> ExpressionIteration {
+  iteration |> unary_expr |> factor_expr_recursive
+}
+
+fn equality_expr_recursive(
+  iteration: ExpressionIteration,
+) -> ExpressionIteration {
+  let #(new_expr, next_iter) = iteration
   let ParseIteration(left, current, right) = next_iter
   case token.tp(current) {
     token_type.BangEqual | token_type.EqualEqual -> {
       let #(right_expr, next_iter) =
         comparison_expr(next_iteration(left, right))
-      #(expr.Binary(new_expr, current, right_expr), next_iter)
+      equality_expr_recursive(#(
+        expr.Binary(new_expr, current, right_expr),
+        next_iter,
+      ))
     }
     _ -> #(new_expr, next_iter)
   }
 }
 
-fn comparison_expr(iteration: ParseIteration) -> #(expr.Expr, ParseIteration) {
-  let #(new_expr, next_iter) = term_expr(iteration)
+fn comparison_expr_recursive(
+  iteration: ExpressionIteration,
+) -> ExpressionIteration {
+  let #(new_expr, next_iter) = iteration
   let ParseIteration(left, current, right) = next_iter
   case token.tp(current) {
     token_type.Greater
@@ -54,37 +80,46 @@ fn comparison_expr(iteration: ParseIteration) -> #(expr.Expr, ParseIteration) {
     | token_type.Less
     | token_type.LessEqual -> {
       let #(right_expr, next_iter) = term_expr(next_iteration(left, right))
-      #(expr.Binary(new_expr, current, right_expr), next_iter)
+      comparison_expr_recursive(#(
+        expr.Binary(new_expr, current, right_expr),
+        next_iter,
+      ))
     }
     _ -> #(new_expr, next_iter)
   }
 }
 
-fn term_expr(iteration: ParseIteration) -> #(expr.Expr, ParseIteration) {
-  let #(new_expr, next_iter) = factor_expr(iteration)
+fn term_expr_recursive(iteration: ExpressionIteration) -> ExpressionIteration {
+  let #(new_expr, next_iter) = iteration
   let ParseIteration(left, current, right) = next_iter
   case token.tp(current) {
     token_type.Plus | token_type.Minus -> {
       let #(right_expr, next_iter) = factor_expr(next_iteration(left, right))
-      #(expr.Binary(new_expr, current, right_expr), next_iter)
+      term_expr_recursive(#(
+        expr.Binary(new_expr, current, right_expr),
+        next_iter,
+      ))
     }
     _ -> #(new_expr, next_iter)
   }
 }
 
-fn factor_expr(iteration: ParseIteration) -> #(expr.Expr, ParseIteration) {
-  let #(new_expr, next_iter) = unary_expr(iteration)
+fn factor_expr_recursive(iteration: ExpressionIteration) -> ExpressionIteration {
+  let #(new_expr, next_iter) = iteration
   let ParseIteration(left, current, right) = next_iter
   case token.tp(current) {
     token_type.Slash | token_type.Star -> {
       let #(right_expr, next_iter) = unary_expr(next_iteration(left, right))
-      #(expr.Binary(new_expr, current, right_expr), next_iter)
+      factor_expr_recursive(#(
+        expr.Binary(new_expr, current, right_expr),
+        next_iter,
+      ))
     }
     _ -> #(new_expr, next_iter)
   }
 }
 
-fn unary_expr(iteration: ParseIteration) -> #(expr.Expr, ParseIteration) {
+fn unary_expr(iteration: ParseIteration) -> ExpressionIteration {
   let ParseIteration(left, current, right) = iteration
   case token.tp(current) {
     token_type.Bang | token_type.Minus -> {
@@ -95,7 +130,7 @@ fn unary_expr(iteration: ParseIteration) -> #(expr.Expr, ParseIteration) {
   }
 }
 
-fn primary_expr(iteration: ParseIteration) -> #(expr.Expr, ParseIteration) {
+fn primary_expr(iteration: ParseIteration) -> ExpressionIteration {
   let ParseIteration(left, current, right) = iteration
   case token.tp(current) {
     token_type.False -> #(expr.BoolLiteral(False), next_iteration(left, right))
