@@ -20,8 +20,7 @@ fn next_iteration(
 }
 
 pub fn parse(tokens: List(token.Token)) -> expr.Expr {
-  let assert [first, ..rest] = tokens
-  let first_iteration = ParseIteration([], first, rest)
+  let first_iteration = next_iteration([], tokens)
   let #(result_expr, next_iter) = parse_recursive(first_iteration)
   case token.tp(next_iter.current) {
     token_type.Eof -> result_expr
@@ -30,7 +29,20 @@ pub fn parse(tokens: List(token.Token)) -> expr.Expr {
 }
 
 fn parse_recursive(iteration: ParseIteration) -> #(expr.Expr, ParseIteration) {
-  comparison_expr(iteration)
+  equality_expr(iteration)
+}
+
+fn equality_expr(iteration: ParseIteration) -> #(expr.Expr, ParseIteration) {
+  let #(new_expr, next_iter) = comparison_expr(iteration)
+  let ParseIteration(left, current, right) = next_iter
+  case token.tp(current) {
+    token_type.BangEqual | token_type.EqualEqual -> {
+      let #(right_expr, next_iter) =
+        comparison_expr(next_iteration(left, right))
+      #(expr.Binary(new_expr, current, right_expr), next_iter)
+    }
+    _ -> #(new_expr, next_iter)
+  }
 }
 
 fn comparison_expr(iteration: ParseIteration) -> #(expr.Expr, ParseIteration) {
