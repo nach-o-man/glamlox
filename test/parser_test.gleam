@@ -33,3 +33,10 @@ pub fn parse_term_test() {
   parse_and_print("1 - 2 / !3") |> should.equal("(- 1 (/ 2 (! 3)))")
   parse_and_print("(1 - 2) / 3") |> should.equal("(/ (group (- 1 2)) 3)")
 }
+
+pub fn parse_comparison_test() {
+  parse_and_print("1 > (2 * 3)") |> should.equal("(> 1 (group (* 2 3)))")
+  parse_and_print("1 < 2") |> should.equal("(< 1 2)")
+  parse_and_print("1 >= 2") |> should.equal("(>= 1 2)")
+  parse_and_print("1 <= 2") |> should.equal("(<= 1 2)")
+}
