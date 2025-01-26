@@ -40,3 +40,10 @@ pub fn parse_comparison_test() {
   parse_and_print("1 >= 2") |> should.equal("(>= 1 2)")
   parse_and_print("1 <= 2") |> should.equal("(<= 1 2)")
 }
+
+pub fn parse_equality_test() {
+  parse_and_print("1 > (2 * 3) == 4")
+  |> should.equal("(== (> 1 (group (* 2 3))) 4)")
+  parse_and_print("1 > (2 * 3) != 4")
+  |> should.equal("(!= (> 1 (group (* 2 3))) 4)")
+}
