@@ -26,3 +26,10 @@ pub fn parse_factor_test() {
   parse_and_print("2 * -1") |> should.equal("(* 2 (- 1))")
   parse_and_print("3 / !2") |> should.equal("(/ 3 (! 2))")
 }
+
+pub fn parse_term_test() {
+  parse_and_print("1 + 2 * -3") |> should.equal("(+ 1 (* 2 (- 3)))")
+  parse_and_print("(1 + 2) * 3") |> should.equal("(* (group (+ 1 2)) 3)")
+  parse_and_print("1 - 2 / !3") |> should.equal("(- 1 (/ 2 (! 3)))")
+  parse_and_print("(1 - 2) / 3") |> should.equal("(/ (group (- 1 2)) 3)")
+}
