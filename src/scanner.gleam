@@ -5,9 +5,21 @@ import gleam/string_tree
 import token
 import token_type
 
+type TokenType =
+  token_type.TokenType
+
+type Token =
+  token.Token
+
+type TokenList =
+  List(Token)
+
+type TokenScanResult =
+  #(Result(Token, Nil), String, Int)
+
 type ScannedToken {
-  Single(tp: token_type.TokenType, lexeme: String)
-  Double(tp: token_type.TokenType, lexeme: String)
+  Single(tp: TokenType, lexeme: String)
+  Double(tp: TokenType, lexeme: String)
   Ignored
   NewLine
   Comment
@@ -18,7 +30,7 @@ type ScannedToken {
   Unexpected(value: String, line: Int)
 }
 
-pub fn scan_tokens(source: String) -> List(token.Token) {
+pub fn scan_tokens(source: String) -> TokenList {
   let #(scanned, line) = scan_tokens_recursive(source, [], 0)
 
   list.reverse([token.eof(line), ..scanned])
@@ -28,7 +40,7 @@ fn scan_tokens_recursive(
   source: String,
   scanned_tokens: List(token.Token),
   line: Int,
-) -> #(List(token.Token), Int) {
+) -> #(TokenList, Int) {
   case source {
     "" -> #(scanned_tokens, line)
     _ -> {
@@ -43,10 +55,7 @@ fn scan_tokens_recursive(
   }
 }
 
-fn scan_token(
-  source: String,
-  line: Int,
-) -> #(Result(token.Token, Nil), String, Int) {
+fn scan_token(source: String, line: Int) -> TokenScanResult {
   let assert Ok(#(first, rest)) = string.pop_grapheme(source)
   let scanned_token = case first {
     "(" -> Single(token_type.LeftParen, first)
@@ -120,7 +129,7 @@ fn process_scanned_token(
   scanned_token: ScannedToken,
   source: String,
   line,
-) -> #(Result(token.Token, Nil), String, Int) {
+) -> TokenScanResult {
   case scanned_token {
     Single(tp, lex) -> {
       let token = token.single(tp, lex, line)
@@ -315,7 +324,7 @@ fn is_alphanumeric(source: String) -> Bool {
   is_digit(source) || is_alpha(source)
 }
 
-fn check_keyword(source: String) -> Result(token_type.TokenType, Nil) {
+fn check_keyword(source: String) -> Result(TokenType, Nil) {
   case source {
     "and" -> Ok(token_type.And)
     "class" -> Ok(token_type.Class)

@@ -3,36 +3,35 @@ import expr
 import token
 import token_type
 
+type Token =
+  token.Token
+
+type TokenList =
+  List(Token)
+
 type ParseIteration {
-  ParseIteration(
-    left: List(token.Token),
-    current: token.Token,
-    rigth: List(token.Token),
-  )
+  ParseIteration(left: TokenList, current: Token, rigth: TokenList)
 }
 
 type ExpressionIteration =
   #(expr.Expr, ParseIteration)
 
-fn next_iteration(
-  left: List(token.Token),
-  right: List(token.Token),
-) -> ParseIteration {
+fn next_iteration(left: TokenList, right: TokenList) -> ParseIteration {
   let assert [new_current, ..new_right] = right
   ParseIteration(left, new_current, new_right)
 }
 
-pub fn parse(tokens: List(token.Token)) -> expr.Expr {
+pub fn parse(tokens: TokenList) -> expr.Expr {
   let first_iteration = next_iteration([], tokens)
-  let #(result_expr, next_iter) = parse_recursive(first_iteration)
+  let #(result_expr, next_iter) = expr(first_iteration)
   case token.tp(next_iter.current) {
     token_type.Eof -> result_expr
-    _ -> error.parse_error(next_iter.current, "Expecterd expression")
+    _ -> error.parse_error(next_iter.current, "Expected expression")
   }
 }
 
-fn parse_recursive(iteration: ParseIteration) -> ExpressionIteration {
-  equality_expr(iteration)
+fn expr(iteration: ParseIteration) -> ExpressionIteration {
+  iteration |> equality_expr
 }
 
 fn equality_expr(iteration: ParseIteration) -> ExpressionIteration {
@@ -136,50 +135,31 @@ fn primary_expr(iteration: ParseIteration) -> ExpressionIteration {
     token_type.False -> #(expr.BoolLiteral(False), next_iteration(left, right))
     token_type.True -> #(expr.BoolLiteral(True), next_iteration(left, right))
     token_type.Nil -> #(expr.NilLiteral, next_iteration(left, right))
-    token_type.Number -> {
-      case token.get_value(current) {
-        #(Ok(int), Error(_), Error(_)) -> #(
-          expr.IntLiteral(int),
-          next_iteration(left, right),
-        )
-        #(Error(_), Ok(fl), Error(_)) -> #(
-          expr.FloatLiteral(fl),
-          next_iteration(left, right),
-        )
+    token_type.Number | token_type.String -> {
+      let found_expr = case token.get_value(current) {
+        #(Ok(int), _, _) -> expr.IntLiteral(int)
+        #(_, Ok(fl), _) -> expr.FloatLiteral(fl)
+        #(_, _, Ok(str)) -> expr.StringLiteral(str)
         #(_, _, _) ->
           error.parse_error(
             current,
             "Illegal call to the token.get_value function",
           )
       }
-    }
-    token_type.String -> {
-      case token.get_value(current) {
-        #(Error(_), Error(_), Ok(str)) -> #(
-          expr.StringLiteral(str),
-          next_iteration(left, right),
-        )
-        #(_, _, _) ->
-          error.parse_error(
-            current,
-            "Illegal call to the token.get_value function",
-          )
-      }
+      #(found_expr, next_iteration(left, right))
     }
     token_type.LeftParen -> {
-      let assert [new_current, ..rest] = right
-      let #(inner, next_iter) =
-        parse_recursive(ParseIteration([], new_current, rest))
-      let maybe_right_paren = next_iter.current
+      let #(inner, next_iter) = expr(next_iteration(left, right))
+      let ParseIteration(left, maybe_right_paren, right) = next_iter
       case token.tp(maybe_right_paren) {
         token_type.RightParen -> #(
           expr.Grouping(inner),
-          next_iteration(next_iter.left, next_iter.rigth),
+          next_iteration(left, right),
         )
         _ ->
           error.parse_error(maybe_right_paren, "Expect ')' after expression.")
       }
     }
-    _ -> todo
+    _ -> error.parse_error(current, "Expected expression")
   }
 }
