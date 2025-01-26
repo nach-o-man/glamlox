@@ -21,3 +21,8 @@ pub fn parse_unary_test() {
   parse_and_print("!2") |> should.equal("(! 2)")
   parse_and_print("!-3") |> should.equal("(! (- 3))")
 }
+
+pub fn parse_factor_test() {
+  parse_and_print("2 * -1") |> should.equal("(* 2 (- 1))")
+  parse_and_print("3 / !2") |> should.equal("(/ 3 (! 2))")
+}
