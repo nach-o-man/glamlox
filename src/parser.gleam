@@ -22,12 +22,30 @@ fn next_iteration(
 pub fn parse(tokens: List(token.Token)) -> expr.Expr {
   let assert [first, ..rest] = tokens
   let first_iteration = ParseIteration([], first, rest)
-  let #(res, _) = parse_recursive(first_iteration)
-  res
+  let #(result_expr, next_iter) = parse_recursive(first_iteration)
+  case token.tp(next_iter.current) {
+    token_type.Eof -> result_expr
+    _ -> error.parse_error(next_iter.current, "Expecterd expression")
+  }
 }
 
 fn parse_recursive(iteration: ParseIteration) -> #(expr.Expr, ParseIteration) {
-  term_expr(iteration)
+  comparison_expr(iteration)
+}
+
+fn comparison_expr(iteration: ParseIteration) -> #(expr.Expr, ParseIteration) {
+  let #(new_expr, next_iter) = term_expr(iteration)
+  let ParseIteration(left, current, right) = next_iter
+  case token.tp(current) {
+    token_type.Greater
+    | token_type.GreaterEqual
+    | token_type.Less
+    | token_type.LessEqual -> {
+      let #(right_expr, next_iter) = term_expr(next_iteration(left, right))
+      #(expr.Binary(new_expr, current, right_expr), next_iter)
+    }
+    _ -> #(new_expr, next_iter)
+  }
 }
 
 fn term_expr(iteration: ParseIteration) -> #(expr.Expr, ParseIteration) {
