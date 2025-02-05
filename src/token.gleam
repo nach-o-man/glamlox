@@ -41,6 +41,14 @@ pub fn line(token: Token) -> Int {
   token.line
 }
 
+pub fn get_bool(token: Token) -> Bool {
+  case tp(token) {
+    token_type.True -> True
+    token_type.False -> False
+    _ -> panic as "Should only be called for Boolean token"
+  }
+}
+
 pub fn get_value(
   token: Token,
 ) -> #(Result(Int, Nil), Result(Float, Nil), Result(String, Nil)) {
