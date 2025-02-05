@@ -19,3 +19,8 @@ fn report(line: Int, where: String, message: String) {
     "[line " <> int.to_string(line) <> "] Error" <> where <> ": " <> message
   }
 }
+
+pub type ExpressionError {
+  Unary(operation: token.Token, message: String)
+  Literal(message: String)
+}
