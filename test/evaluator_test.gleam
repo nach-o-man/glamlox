@@ -41,3 +41,15 @@ pub fn evaluate_unary_test() {
   |> should.be_ok
   |> should.equal(expr.BoolLiteral(True))
 }
+
+pub fn evaluate_binary_test() {
+  parse_and_evaluate("2-1")
+  |> should.be_ok
+  |> should.equal(expr.IntLiteral(1))
+  parse_and_evaluate("1.2 * 2")
+  |> should.be_ok
+  |> should.equal(expr.FloatLiteral(2.4))
+  parse_and_evaluate("4.2 / 2.1")
+  |> should.be_ok
+  |> should.equal(expr.FloatLiteral(2.0))
+}
