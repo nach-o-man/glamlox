@@ -1,6 +1,7 @@
 import error
 import evaluator
 import expr
+import gleam/dict
 import gleeunit/should
 import parser
 import scanner
@@ -42,14 +43,40 @@ pub fn evaluate_unary_test() {
   |> should.equal(expr.BoolLiteral(True))
 }
 
-pub fn evaluate_binary_test() {
-  parse_and_evaluate("2-1")
-  |> should.be_ok
-  |> should.equal(expr.IntLiteral(1))
-  parse_and_evaluate("1.2 * 2")
-  |> should.be_ok
-  |> should.equal(expr.FloatLiteral(2.4))
-  parse_and_evaluate("4.2 / 2.1")
-  |> should.be_ok
-  |> should.equal(expr.FloatLiteral(2.0))
+pub fn evaluate_binary_float_test() {
+  let input =
+    dict.from_list([#("2-1", 1.0), #("1.2 * 2", 2.4), #("4.2 / 2.1", 2.0)])
+
+  dict.each(input, fn(k, v) {
+    parse_and_evaluate(k)
+    |> should.be_ok
+    |> should.equal(expr.FloatLiteral(v))
+  })
+}
+
+pub fn evaluate_binary_bool_test() {
+  let input =
+    dict.from_list([
+      #("4.2 < 2.1", False),
+      #("4.2 > 2.1", True),
+      #("1 == 1", True),
+      #("1 >= 1", True),
+      #("1 >= 0.9", True),
+      #("1 >= 1.2", False),
+      #("1 <= 1", True),
+      #("1 <= 1.1", True),
+      #("1 <= 0.9", False),
+      #("1 != 1", False),
+      #("\"A\" == \"a\"", False),
+      #("\"A\" == \"A\"", True),
+      #("\"A\" != \"a\"", True),
+      #("\"A\" != \"A\"", False),
+      #("nil == nil", True),
+    ])
+
+  dict.each(input, fn(k, v) {
+    parse_and_evaluate(k)
+    |> should.be_ok
+    |> should.equal(expr.BoolLiteral(v))
+  })
 }

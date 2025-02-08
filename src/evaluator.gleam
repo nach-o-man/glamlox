@@ -1,10 +1,10 @@
 import error
 import expr
 import gleam/bool
-import gleam/erlang/os
 import gleam/float
 import gleam/int
 import gleam/io
+import gleam/order
 import token
 import token_type
 
@@ -16,6 +16,16 @@ type Expr =
 
 type EvalResult =
   Result(Expr, error.ExpressionError)
+
+type NumberPair =
+  #(Float, Float)
+
+type CustomOrder {
+  Gt
+  GtEq
+  LtEq
+  Lt
+}
 
 pub fn evaluate(expr: Expr) -> EvalResult {
   case expr {
@@ -41,44 +51,69 @@ fn is_truthy(expr: Expr) -> Bool {
   }
 }
 
+fn assert_number(expr: expr.Expr) -> Float {
+  case expr {
+    expr.FloatLiteral(value) -> value
+    expr.IntLiteral(value) -> int.to_float(value)
+    _ -> panic as "Number expected"
+  }
+}
+
+fn assert_numbers(left: expr.Expr, right: expr.Expr) -> NumberPair {
+  #(assert_number(left), assert_number(right))
+}
+
+fn division_by_zero_eq_zero(a: Float, b: Float) -> Float {
+  case float.divide(a, b) {
+    Ok(val) -> val
+    _ -> 0.0
+  }
+}
+
+fn pipe_to_func(pair: NumberPair, func: fn(Float, Float) -> Float) -> EvalResult {
+  func(pair.0, pair.1) |> expr.FloatLiteral |> Ok
+}
+
+fn expected_order(pair: NumberPair, expected: CustomOrder) -> EvalResult {
+  let result = case expected {
+    Gt -> order.break_tie(float.compare(pair.0, pair.1), order.Eq) == order.Gt
+    GtEq -> order.break_tie(float.compare(pair.0, pair.1), order.Gt) == order.Gt
+    Lt -> order.break_tie(float.compare(pair.0, pair.1), order.Eq) == order.Lt
+    LtEq -> order.break_tie(float.compare(pair.0, pair.1), order.Lt) == order.Lt
+  }
+  result |> expr.BoolLiteral |> Ok
+}
+
 fn evaluate_binary(operator: Token, left, right) -> EvalResult {
   let assert Ok(left) = evaluate(left)
   let assert Ok(right) = evaluate(right)
 
-  let math_func = case token.tp(operator) {
-    token_type.Minus -> #(float.subtract, int.subtract)
-    token_type.Slash -> #(
-      fn(a, b) {
-        case float.divide(a, b) {
-          Ok(val) -> val
-          _ -> 0.0
-        }
-      },
-      fn(a, b) {
-        case int.divide(a, b) {
-          Ok(val) -> val
-          _ -> 0
-        }
-      },
-    )
-    token_type.Star -> #(float.multiply, int.multiply)
+  case token.tp(operator) {
+    token_type.Minus ->
+      assert_numbers(left, right) |> pipe_to_func(float.subtract)
+    token_type.Slash ->
+      assert_numbers(left, right) |> pipe_to_func(division_by_zero_eq_zero)
+    token_type.Star ->
+      assert_numbers(left, right) |> pipe_to_func(float.multiply)
+    token_type.Plus ->
+      case left, right {
+        expr.StringLiteral(s1), expr.StringLiteral(s2) ->
+          expr.StringLiteral(s1 <> s2) |> Ok
+        _, _ -> assert_numbers(left, right) |> pipe_to_func(float.add)
+      }
+    token_type.Greater -> assert_numbers(left, right) |> expected_order(Gt)
+    token_type.GreaterEqual ->
+      assert_numbers(left, right) |> expected_order(GtEq)
+    token_type.EqualEqual -> { left == right } |> expr.BoolLiteral |> Ok
+    token_type.BangEqual -> { left != right } |> expr.BoolLiteral |> Ok
+    token_type.LessEqual -> assert_numbers(left, right) |> expected_order(LtEq)
+    token_type.Less -> assert_numbers(left, right) |> expected_order(Lt)
     _ -> {
       io.debug(left)
       io.debug(operator)
       io.debug(right)
       todo
     }
-  }
-  case left, right {
-    expr.FloatLiteral(f1), expr.FloatLiteral(f2) ->
-      math_func.0(f1, f2) |> expr.FloatLiteral |> Ok
-    expr.IntLiteral(i1), expr.FloatLiteral(f2) ->
-      i1 |> int.to_float |> math_func.0(f2) |> expr.FloatLiteral |> Ok
-    expr.FloatLiteral(f1), expr.IntLiteral(i2) ->
-      i2 |> int.to_float |> math_func.0(f1, _) |> expr.FloatLiteral |> Ok
-    expr.IntLiteral(i1), expr.IntLiteral(i2) ->
-      math_func.1(i1, i2) |> expr.IntLiteral |> Ok
-    _, _ -> todo
   }
 }
 
