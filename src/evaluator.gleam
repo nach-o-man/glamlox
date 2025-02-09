@@ -5,6 +5,7 @@ import gleam/float
 import gleam/int
 import gleam/io
 import gleam/order
+import gleam/string
 import token
 import token_type
 
@@ -17,8 +18,11 @@ type Expr =
 type EvalResult =
   Result(Expr, error.ExpressionError)
 
-type NumberPair =
-  #(Float, Float)
+type AllowedOperands {
+  NumberPair(Float, Float)
+  StringPair(String, String)
+  StringNumber(String, Float)
+}
 
 type CustomOrder {
   Gt
@@ -51,7 +55,7 @@ fn is_truthy(expr: Expr) -> Bool {
   }
 }
 
-fn assert_number(expr: expr.Expr) -> Float {
+fn assert_number(expr: Expr) -> Float {
   case expr {
     expr.FloatLiteral(value) -> value
     expr.IntLiteral(value) -> int.to_float(value)
@@ -59,8 +63,23 @@ fn assert_number(expr: expr.Expr) -> Float {
   }
 }
 
-fn assert_numbers(left: expr.Expr, right: expr.Expr) -> NumberPair {
-  #(assert_number(left), assert_number(right))
+fn assert_numbers(left: Expr, right: Expr) -> AllowedOperands {
+  NumberPair(assert_number(left), assert_number(right))
+}
+
+fn assert_allowed(left: Expr, right: Expr) -> AllowedOperands {
+  case left, right {
+    expr.FloatLiteral(l), expr.FloatLiteral(r) -> NumberPair(l, r)
+    expr.FloatLiteral(l), expr.IntLiteral(r) -> NumberPair(l, int.to_float(r))
+    expr.IntLiteral(l), expr.FloatLiteral(r) -> NumberPair(int.to_float(l), r)
+    expr.IntLiteral(l), expr.IntLiteral(r) ->
+      NumberPair(int.to_float(l), int.to_float(r))
+    expr.StringLiteral(l), expr.FloatLiteral(r) -> StringNumber(l, r)
+    expr.StringLiteral(l), expr.IntLiteral(r) ->
+      StringNumber(l, int.to_float(r))
+    expr.StringLiteral(l), expr.StringLiteral(r) -> StringPair(l, r)
+    _, _ -> panic as "Allowed only strings and number"
+  }
 }
 
 fn division_by_zero_eq_zero(a: Float, b: Float) -> Float {
@@ -70,16 +89,27 @@ fn division_by_zero_eq_zero(a: Float, b: Float) -> Float {
   }
 }
 
-fn pipe_to_func(pair: NumberPair, func: fn(Float, Float) -> Float) -> EvalResult {
-  func(pair.0, pair.1) |> expr.FloatLiteral |> Ok
+fn pipe_to_func(
+  pair: AllowedOperands,
+  func: fn(Float, Float) -> Float,
+) -> EvalResult {
+  case pair {
+    NumberPair(l, r) -> func(l, r) |> expr.FloatLiteral |> Ok
+    _ -> panic as "Shoul be only called for the pair of numbers."
+  }
 }
 
-fn expected_order(pair: NumberPair, expected: CustomOrder) -> EvalResult {
+fn expected_order(pair: AllowedOperands, expected: CustomOrder) -> EvalResult {
+  let result = case pair {
+    NumberPair(l, r) -> float.compare(l, r)
+    StringPair(l, r) -> string.compare(l, r)
+    _ -> panic as "Allowed only for strings or numbers"
+  }
   let result = case expected {
-    Gt -> order.break_tie(float.compare(pair.0, pair.1), order.Eq) == order.Gt
-    GtEq -> order.break_tie(float.compare(pair.0, pair.1), order.Gt) == order.Gt
-    Lt -> order.break_tie(float.compare(pair.0, pair.1), order.Eq) == order.Lt
-    LtEq -> order.break_tie(float.compare(pair.0, pair.1), order.Lt) == order.Lt
+    Gt -> order.break_tie(result, order.Eq) == order.Gt
+    GtEq -> order.break_tie(result, order.Gt) == order.Gt
+    Lt -> order.break_tie(result, order.Eq) == order.Lt
+    LtEq -> order.break_tie(result, order.Lt) == order.Lt
   }
   result |> expr.BoolLiteral |> Ok
 }
@@ -96,18 +126,19 @@ fn evaluate_binary(operator: Token, left, right) -> EvalResult {
     token_type.Star ->
       assert_numbers(left, right) |> pipe_to_func(float.multiply)
     token_type.Plus ->
-      case left, right {
-        expr.StringLiteral(s1), expr.StringLiteral(s2) ->
-          expr.StringLiteral(s1 <> s2) |> Ok
-        _, _ -> assert_numbers(left, right) |> pipe_to_func(float.add)
+      case assert_allowed(left, right) {
+        StringPair(l, r) -> { l <> r } |> expr.StringLiteral |> Ok
+        NumberPair(l, r) -> NumberPair(l, r) |> pipe_to_func(float.add)
+        StringNumber(l, r) ->
+          { l <> float.to_string(r) } |> expr.StringLiteral |> Ok
       }
-    token_type.Greater -> assert_numbers(left, right) |> expected_order(Gt)
+    token_type.Greater -> assert_allowed(left, right) |> expected_order(Gt)
     token_type.GreaterEqual ->
-      assert_numbers(left, right) |> expected_order(GtEq)
+      assert_allowed(left, right) |> expected_order(GtEq)
     token_type.EqualEqual -> { left == right } |> expr.BoolLiteral |> Ok
     token_type.BangEqual -> { left != right } |> expr.BoolLiteral |> Ok
-    token_type.LessEqual -> assert_numbers(left, right) |> expected_order(LtEq)
-    token_type.Less -> assert_numbers(left, right) |> expected_order(Lt)
+    token_type.LessEqual -> assert_allowed(left, right) |> expected_order(LtEq)
+    token_type.Less -> assert_allowed(left, right) |> expected_order(Lt)
     _ -> {
       io.debug(left)
       io.debug(operator)
