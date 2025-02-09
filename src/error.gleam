@@ -1,3 +1,4 @@
+import expr
 import gleam/int
 import token
 import token_type
@@ -14,6 +15,10 @@ pub fn parse_error(tkn: token.Token, message: String) {
   }
 }
 
+pub fn unreacheable_code() {
+  panic as "This code should not be reached"
+}
+
 fn report(line: Int, where: String, message: String) {
   panic as {
     "[line " <> int.to_string(line) <> "] Error" <> where <> ": " <> message
@@ -21,6 +26,7 @@ fn report(line: Int, where: String, message: String) {
 }
 
 pub type ExpressionError {
-  Unary(operation: token.Token, message: String)
-  Literal(message: String)
+  UnsupportedExpression(expr.Expr)
+  OperationError(operation: token.Token, message: String)
+  JustMessage(String)
 }

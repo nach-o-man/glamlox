@@ -3,8 +3,8 @@ import expr
 import gleam/bool
 import gleam/float
 import gleam/int
-import gleam/io
 import gleam/order
+import gleam/result
 import gleam/string
 import token
 import token_type
@@ -21,7 +21,8 @@ type EvalResult =
 type AllowedOperands {
   NumberPair(Float, Float)
   StringPair(String, String)
-  StringNumber(String, Float)
+  StringFloat(String, Float)
+  StringInt(String, Int)
 }
 
 type CustomOrder {
@@ -40,10 +41,7 @@ pub fn evaluate(expr: Expr) -> EvalResult {
     | expr.NilLiteral -> Ok(expr)
     expr.Unary(op, r) -> evaluate_unary(op, r)
     expr.Binary(l, op, r) -> evaluate_binary(op, l, r)
-    _ -> {
-      io.debug(expr)
-      todo
-    }
+    _ -> error.UnsupportedExpression(expr) |> Error
   }
 }
 
@@ -55,30 +53,40 @@ fn is_truthy(expr: Expr) -> Bool {
   }
 }
 
-fn assert_number(expr: Expr) -> Float {
+fn assert_number(expr: Expr) -> Result(Float, error.ExpressionError) {
   case expr {
-    expr.FloatLiteral(value) -> value
-    expr.IntLiteral(value) -> int.to_float(value)
-    _ -> panic as "Number expected"
+    expr.FloatLiteral(value) -> value |> Ok
+    expr.IntLiteral(value) -> int.to_float(value) |> Ok
+    _ -> error.JustMessage("Should be called with number literal.") |> Error
   }
 }
 
-fn assert_numbers(left: Expr, right: Expr) -> AllowedOperands {
-  NumberPair(assert_number(left), assert_number(right))
+fn assert_numbers(
+  left: Expr,
+  right: Expr,
+) -> Result(AllowedOperands, error.ExpressionError) {
+  case assert_number(left), assert_number(right) {
+    Ok(l), Ok(r) -> NumberPair(l, r) |> Ok
+    _, _ -> error.JustMessage("Operation allowed only for 2 numbers") |> Error
+  }
 }
 
-fn assert_allowed(left: Expr, right: Expr) -> AllowedOperands {
+fn assert_allowed(
+  left: Expr,
+  right: Expr,
+) -> Result(AllowedOperands, error.ExpressionError) {
   case left, right {
-    expr.FloatLiteral(l), expr.FloatLiteral(r) -> NumberPair(l, r)
-    expr.FloatLiteral(l), expr.IntLiteral(r) -> NumberPair(l, int.to_float(r))
-    expr.IntLiteral(l), expr.FloatLiteral(r) -> NumberPair(int.to_float(l), r)
+    expr.FloatLiteral(l), expr.FloatLiteral(r) -> NumberPair(l, r) |> Ok
+    expr.FloatLiteral(l), expr.IntLiteral(r) ->
+      NumberPair(l, int.to_float(r)) |> Ok
+    expr.IntLiteral(l), expr.FloatLiteral(r) ->
+      NumberPair(int.to_float(l), r) |> Ok
     expr.IntLiteral(l), expr.IntLiteral(r) ->
-      NumberPair(int.to_float(l), int.to_float(r))
-    expr.StringLiteral(l), expr.FloatLiteral(r) -> StringNumber(l, r)
-    expr.StringLiteral(l), expr.IntLiteral(r) ->
-      StringNumber(l, int.to_float(r))
-    expr.StringLiteral(l), expr.StringLiteral(r) -> StringPair(l, r)
-    _, _ -> panic as "Allowed only strings and number"
+      NumberPair(int.to_float(l), int.to_float(r)) |> Ok
+    expr.StringLiteral(l), expr.FloatLiteral(r) -> StringFloat(l, r) |> Ok
+    expr.StringLiteral(l), expr.IntLiteral(r) -> StringInt(l, r) |> Ok
+    expr.StringLiteral(l), expr.StringLiteral(r) -> StringPair(l, r) |> Ok
+    _, _ -> error.JustMessage("Disallowed argument combination") |> Error
   }
 }
 
@@ -95,23 +103,31 @@ fn pipe_to_func(
 ) -> EvalResult {
   case pair {
     NumberPair(l, r) -> func(l, r) |> expr.FloatLiteral |> Ok
-    _ -> panic as "Shoul be only called for the pair of numbers."
+    _ ->
+      error.JustMessage("Shoul be only called for the pair of numbers.")
+      |> Error
   }
 }
 
 fn expected_order(pair: AllowedOperands, expected: CustomOrder) -> EvalResult {
-  let result = case pair {
-    NumberPair(l, r) -> float.compare(l, r)
-    StringPair(l, r) -> string.compare(l, r)
-    _ -> panic as "Allowed only for strings or numbers"
+  let comparison_result = case pair {
+    NumberPair(l, r) -> float.compare(l, r) |> Ok
+    StringPair(l, r) -> string.compare(l, r) |> Ok
+    _ ->
+      error.JustMessage("Operands must be two numbers or two strings") |> Error
   }
-  let result = case expected {
-    Gt -> order.break_tie(result, order.Eq) == order.Gt
-    GtEq -> order.break_tie(result, order.Gt) == order.Gt
-    Lt -> order.break_tie(result, order.Eq) == order.Lt
-    LtEq -> order.break_tie(result, order.Lt) == order.Lt
+
+  let break_tie_and_compare = fn(x) {
+    case expected {
+      Gt -> order.break_tie(x, order.Eq) == order.Gt
+      GtEq -> order.break_tie(x, order.Gt) == order.Gt
+      Lt -> order.break_tie(x, order.Eq) == order.Lt
+      LtEq -> order.break_tie(x, order.Lt) == order.Lt
+    }
+    |> expr.BoolLiteral
+    |> Ok
   }
-  result |> expr.BoolLiteral |> Ok
+  result.try(comparison_result, break_tie_and_compare)
 }
 
 fn evaluate_binary(operator: Token, left, right) -> EvalResult {
@@ -120,32 +136,44 @@ fn evaluate_binary(operator: Token, left, right) -> EvalResult {
 
   case token.tp(operator) {
     token_type.Minus ->
-      assert_numbers(left, right) |> pipe_to_func(float.subtract)
+      assert_numbers(left, right) |> result.try(pipe_to_func(_, float.subtract))
     token_type.Slash ->
-      assert_numbers(left, right) |> pipe_to_func(division_by_zero_eq_zero)
+      assert_numbers(left, right)
+      |> result.try(pipe_to_func(_, division_by_zero_eq_zero))
     token_type.Star ->
-      assert_numbers(left, right) |> pipe_to_func(float.multiply)
+      assert_numbers(left, right) |> result.try(pipe_to_func(_, float.multiply))
     token_type.Plus ->
-      case assert_allowed(left, right) {
-        StringPair(l, r) -> { l <> r } |> expr.StringLiteral |> Ok
-        NumberPair(l, r) -> NumberPair(l, r) |> pipe_to_func(float.add)
-        StringNumber(l, r) ->
-          { l <> float.to_string(r) } |> expr.StringLiteral |> Ok
-      }
-    token_type.Greater -> assert_allowed(left, right) |> expected_order(Gt)
+      result.try(assert_allowed(left, right), fn(allowed) {
+        case allowed {
+          StringPair(l, r) -> { l <> r } |> expr.StringLiteral |> Ok
+          NumberPair(l, r) -> NumberPair(l, r) |> pipe_to_func(float.add)
+          StringFloat(l, r) ->
+            { l <> float.to_string(r) } |> expr.StringLiteral |> Ok
+          StringInt(l, r) ->
+            { l <> int.to_string(r) } |> expr.StringLiteral |> Ok
+        }
+      })
+    token_type.Greater ->
+      assert_allowed(left, right) |> result.try(expected_order(_, Gt))
     token_type.GreaterEqual ->
-      assert_allowed(left, right) |> expected_order(GtEq)
+      assert_allowed(left, right) |> result.try(expected_order(_, GtEq))
     token_type.EqualEqual -> { left == right } |> expr.BoolLiteral |> Ok
     token_type.BangEqual -> { left != right } |> expr.BoolLiteral |> Ok
-    token_type.LessEqual -> assert_allowed(left, right) |> expected_order(LtEq)
-    token_type.Less -> assert_allowed(left, right) |> expected_order(Lt)
-    _ -> {
-      io.debug(left)
-      io.debug(operator)
-      io.debug(right)
-      todo
-    }
+    token_type.LessEqual ->
+      assert_allowed(left, right) |> result.try(expected_order(_, LtEq))
+    token_type.Less ->
+      assert_allowed(left, right) |> result.try(expected_order(_, Lt))
+    _ -> error.unreacheable_code()
   }
+  |> result.try_recover(fn(err) {
+    case err {
+      error.JustMessage(message) ->
+        error.OperationError(operator, message) |> Error
+      error.OperationError(op, message) ->
+        error.OperationError(op, message) |> Error
+      _ -> error.unreacheable_code()
+    }
+  })
 }
 
 fn evaluate_unary(operator: Token, right: Expr) -> EvalResult {
@@ -155,15 +183,12 @@ fn evaluate_unary(operator: Token, right: Expr) -> EvalResult {
       case right {
         expr.IntLiteral(i) -> expr.IntLiteral(-i) |> Ok
         expr.FloatLiteral(f) -> f |> float.negate |> expr.FloatLiteral |> Ok
-        _ -> operator |> error.Unary("Operand must be number.") |> Error
+        _ ->
+          operator |> error.OperationError("Operand must be number.") |> Error
       }
     }
     token_type.Bang ->
       right |> is_truthy |> bool.negate |> expr.BoolLiteral |> Ok
-    _ -> {
-      io.debug(operator)
-      io.debug(right)
-      todo
-    }
+    _ -> error.unreacheable_code()
   }
 }

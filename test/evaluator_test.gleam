@@ -56,7 +56,11 @@ pub fn evaluate_binary_float_test() {
 
 pub fn evaluate_binary_string_test() {
   let input =
-    dict.from_list([#("\"A\" + \"B\"", "AB"), #("\"A\" + \"4\"", "A4")])
+    dict.from_list([
+      #("\"A\" + \"B\"", "AB"),
+      #("\"A\" + 4", "A4"),
+      #("\"A\" + 4.2", "A4.2"),
+    ])
 
   dict.each(input, fn(k, v) {
     parse_and_evaluate(k)
