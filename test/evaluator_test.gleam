@@ -54,6 +54,17 @@ pub fn evaluate_binary_float_test() {
   })
 }
 
+pub fn evaluate_binary_string_test() {
+  let input =
+    dict.from_list([#("\"A\" + \"B\"", "AB"), #("\"A\" + \"4\"", "A4")])
+
+  dict.each(input, fn(k, v) {
+    parse_and_evaluate(k)
+    |> should.be_ok
+    |> should.equal(expr.StringLiteral(v))
+  })
+}
+
 pub fn evaluate_binary_bool_test() {
   let input =
     dict.from_list([
@@ -68,7 +79,11 @@ pub fn evaluate_binary_bool_test() {
       #("1 <= 0.9", False),
       #("1 != 1", False),
       #("\"A\" == \"a\"", False),
+      #("\"A\" < \"a\"", True),
+      #("\"A\" <= \"A\"", True),
       #("\"A\" == \"A\"", True),
+      #("\"z\" >= \"A\"", True),
+      #("\"A\" < \"Z\"", True),
       #("\"A\" != \"a\"", True),
       #("\"A\" != \"A\"", False),
       #("nil == nil", True),
