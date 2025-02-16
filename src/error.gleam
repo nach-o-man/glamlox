@@ -1,13 +1,19 @@
-import expr
+import ast
 import gleam/int
 import token
 import token_type
+
+type Expr =
+  ast.Expr
+
+type Token =
+  token.Token
 
 pub fn error(line: Int, message: String) {
   report(line, "", message)
 }
 
-pub fn parse_error(tkn: token.Token, message: String) {
+pub fn parse_error(tkn: Token, message: String) {
   let line = token.line(tkn)
   case token.tp(tkn) {
     token_type.Eof -> report(line, " at end", message)
@@ -26,7 +32,7 @@ fn report(line: Int, where: String, message: String) {
 }
 
 pub type ExpressionError {
-  UnsupportedExpression(expr.Expr)
+  UnsupportedExpression(Expr)
   OperationError(operation: token.Token, message: String)
   JustMessage(String)
 }

@@ -1,46 +1,49 @@
+import ast
 import error
 import evaluator
-import expr
 import gleam/dict
 import gleeunit/should
 import parser
 import scanner
 
-fn parse_and_evaluate(input: String) -> Result(expr.Expr, error.ExpressionError) {
+type Expr =
+  ast.Expr
+
+fn parse_and_evaluate(input: String) -> Result(Expr, error.ExpressionError) {
   scanner.scan_tokens(input) |> parser.parse |> evaluator.evaluate
 }
 
 pub fn evaluate_unary_test() {
   parse_and_evaluate("-1")
   |> should.be_ok
-  |> should.equal(expr.IntLiteral(-1))
+  |> should.equal(ast.IntLiteral(-1))
   parse_and_evaluate("--1")
   |> should.be_ok
-  |> should.equal(expr.IntLiteral(1))
+  |> should.equal(ast.IntLiteral(1))
   parse_and_evaluate("-1.23")
   |> should.be_ok
-  |> should.equal(expr.FloatLiteral(-1.23))
+  |> should.equal(ast.FloatLiteral(-1.23))
   parse_and_evaluate("!1")
   |> should.be_ok
-  |> should.equal(expr.BoolLiteral(False))
+  |> should.equal(ast.BoolLiteral(False))
   parse_and_evaluate("!1.23")
   |> should.be_ok
-  |> should.equal(expr.BoolLiteral(False))
+  |> should.equal(ast.BoolLiteral(False))
   parse_and_evaluate("!nil")
   |> should.be_ok
-  |> should.equal(expr.BoolLiteral(True))
+  |> should.equal(ast.BoolLiteral(True))
   parse_and_evaluate("!true")
   |> should.be_ok
-  |> should.equal(expr.BoolLiteral(False))
+  |> should.equal(ast.BoolLiteral(False))
   parse_and_evaluate("!0")
   |> should.be_ok
-  |> should.equal(expr.BoolLiteral(False))
+  |> should.equal(ast.BoolLiteral(False))
   parse_and_evaluate("!!false")
   |> should.be_ok
-  |> should.equal(expr.BoolLiteral(False))
+  |> should.equal(ast.BoolLiteral(False))
   parse_and_evaluate("!false")
   |> should.be_ok
-  |> should.equal(expr.BoolLiteral(True))
+  |> should.equal(ast.BoolLiteral(True))
 }
 
 pub fn evaluate_binary_float_test() {
@@ -50,7 +53,7 @@ pub fn evaluate_binary_float_test() {
   dict.each(input, fn(k, v) {
     parse_and_evaluate(k)
     |> should.be_ok
-    |> should.equal(expr.FloatLiteral(v))
+    |> should.equal(ast.FloatLiteral(v))
   })
 }
 
@@ -65,7 +68,7 @@ pub fn evaluate_binary_string_test() {
   dict.each(input, fn(k, v) {
     parse_and_evaluate(k)
     |> should.be_ok
-    |> should.equal(expr.StringLiteral(v))
+    |> should.equal(ast.StringLiteral(v))
   })
 }
 
@@ -96,6 +99,6 @@ pub fn evaluate_binary_bool_test() {
   dict.each(input, fn(k, v) {
     parse_and_evaluate(k)
     |> should.be_ok
-    |> should.equal(expr.BoolLiteral(v))
+    |> should.equal(ast.BoolLiteral(v))
   })
 }
