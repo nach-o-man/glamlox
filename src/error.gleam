@@ -32,7 +32,7 @@ fn report(line: Int, where: String, message: String) {
 }
 
 pub type ExpressionError {
-  UnsupportedExpression(Expr)
-  OperationError(operation: token.Token, message: String)
-  JustMessage(String)
+  UnsupportedExpression(message: String, expression: Expr)
+  OperationError(message: String, operation: token.Token)
+  JustMessage(message: String)
 }
