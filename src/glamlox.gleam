@@ -1,9 +1,9 @@
 import argv
 import ast
-import evaluator
 import gleam/erlang
 import gleam/io
 import gleam/string
+import interpreter
 import parser
 import scanner
 import simplifile
@@ -49,13 +49,11 @@ fn debug(source: String) {
 fn run(source: String) {
   scanner.scan_tokens(source)
   |> parser.parse
-  |> evaluator.evaluate
-  |> string.inspect
-  |> io.println
+  |> interpreter.interpret
 }
 
 fn run_prompt(consumer: PromptConsumer) {
-  let assert Ok(line) = erlang.get_line("> ")
+  let assert Ok(line) = erlang.get_line("~> ")
   case string.trim(line) {
     "exit" -> Nil
     _ -> {
