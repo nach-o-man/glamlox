@@ -1,10 +1,13 @@
+import ast
 import error
-import expr
 import token
 import token_type
 
 type Token =
   token.Token
+
+type Expr =
+  ast.Expr
 
 type TokenList =
   List(Token)
@@ -14,14 +17,14 @@ type ParseIteration {
 }
 
 type ExpressionIteration =
-  #(expr.Expr, ParseIteration)
+  #(Expr, ParseIteration)
 
 fn next_iteration(left: TokenList, right: TokenList) -> ParseIteration {
   let assert [new_current, ..new_right] = right
   ParseIteration(left, new_current, new_right)
 }
 
-pub fn parse(tokens: TokenList) -> expr.Expr {
+pub fn parse(tokens: TokenList) -> Expr {
   let first_iteration = next_iteration([], tokens)
   let #(result_expr, next_iter) = expr(first_iteration)
   case token.tp(next_iter.current) {
@@ -60,7 +63,7 @@ fn equality_expr_recursive(
       let #(right_expr, next_iter) =
         comparison_expr(next_iteration(left, right))
       equality_expr_recursive(#(
-        expr.Binary(new_expr, current, right_expr),
+        ast.Binary(new_expr, current, right_expr),
         next_iter,
       ))
     }
@@ -80,7 +83,7 @@ fn comparison_expr_recursive(
     | token_type.LessEqual -> {
       let #(right_expr, next_iter) = term_expr(next_iteration(left, right))
       comparison_expr_recursive(#(
-        expr.Binary(new_expr, current, right_expr),
+        ast.Binary(new_expr, current, right_expr),
         next_iter,
       ))
     }
@@ -95,7 +98,7 @@ fn term_expr_recursive(iteration: ExpressionIteration) -> ExpressionIteration {
     token_type.Plus | token_type.Minus -> {
       let #(right_expr, next_iter) = factor_expr(next_iteration(left, right))
       term_expr_recursive(#(
-        expr.Binary(new_expr, current, right_expr),
+        ast.Binary(new_expr, current, right_expr),
         next_iter,
       ))
     }
@@ -110,7 +113,7 @@ fn factor_expr_recursive(iteration: ExpressionIteration) -> ExpressionIteration 
     token_type.Slash | token_type.Star -> {
       let #(right_expr, next_iter) = unary_expr(next_iteration(left, right))
       factor_expr_recursive(#(
-        expr.Binary(new_expr, current, right_expr),
+        ast.Binary(new_expr, current, right_expr),
         next_iter,
       ))
     }
@@ -123,7 +126,7 @@ fn unary_expr(iteration: ParseIteration) -> ExpressionIteration {
   case token.tp(current) {
     token_type.Bang | token_type.Minus -> {
       let #(new_expr, next_iter) = unary_expr(next_iteration(left, right))
-      #(expr.Unary(current, new_expr), next_iter)
+      #(ast.Unary(current, new_expr), next_iter)
     }
     _ -> primary_expr(iteration)
   }
@@ -132,14 +135,14 @@ fn unary_expr(iteration: ParseIteration) -> ExpressionIteration {
 fn primary_expr(iteration: ParseIteration) -> ExpressionIteration {
   let ParseIteration(left, current, right) = iteration
   case token.tp(current) {
-    token_type.False -> #(expr.BoolLiteral(False), next_iteration(left, right))
-    token_type.True -> #(expr.BoolLiteral(True), next_iteration(left, right))
-    token_type.Nil -> #(expr.NilLiteral, next_iteration(left, right))
+    token_type.False -> #(ast.BoolLiteral(False), next_iteration(left, right))
+    token_type.True -> #(ast.BoolLiteral(True), next_iteration(left, right))
+    token_type.Nil -> #(ast.NilLiteral, next_iteration(left, right))
     token_type.Number | token_type.String -> {
       let found_expr = case token.get_value(current) {
-        #(Ok(int), _, _) -> expr.IntLiteral(int)
-        #(_, Ok(fl), _) -> expr.FloatLiteral(fl)
-        #(_, _, Ok(str)) -> expr.StringLiteral(str)
+        #(Ok(int), _, _) -> ast.IntLiteral(int)
+        #(_, Ok(fl), _) -> ast.FloatLiteral(fl)
+        #(_, _, Ok(str)) -> ast.StringLiteral(str)
         #(_, _, _) ->
           error.parse_error(
             current,
@@ -153,7 +156,7 @@ fn primary_expr(iteration: ParseIteration) -> ExpressionIteration {
       let ParseIteration(left, maybe_right_paren, right) = next_iter
       case token.tp(maybe_right_paren) {
         token_type.RightParen -> #(
-          expr.Grouping(inner),
+          ast.Grouping(inner),
           next_iteration(left, right),
         )
         _ ->
