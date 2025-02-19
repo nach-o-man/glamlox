@@ -1,5 +1,6 @@
 import ast
 import error
+import gleam/list
 import token
 import token_type
 
@@ -9,27 +10,75 @@ type Token =
 type Expr =
   ast.Expr
 
+type Stmt =
+  ast.Stmt
+
 type TokenList =
   List(Token)
 
+type StatementList =
+  List(Stmt)
+
 type ParseIteration {
-  ParseIteration(left: TokenList, current: Token, rigth: TokenList)
+  ParseIteration(left: TokenList, current: Token, right: TokenList)
 }
 
 type ExpressionIteration =
   #(Expr, ParseIteration)
+
+type StatementIteration =
+  #(Stmt, ParseIteration)
 
 fn next_iteration(left: TokenList, right: TokenList) -> ParseIteration {
   let assert [new_current, ..new_right] = right
   ParseIteration(left, new_current, new_right)
 }
 
-pub fn parse(tokens: TokenList) -> Expr {
+pub fn parse(tokens: TokenList) -> StatementList {
   let first_iteration = next_iteration([], tokens)
-  let #(result_expr, next_iter) = expr(first_iteration)
+  parse_recursive(first_iteration, [])
+}
+
+fn parse_recursive(
+  iteration: ParseIteration,
+  statements: StatementList,
+) -> StatementList {
+  case token.tp(iteration.current) {
+    token_type.Eof -> list.reverse(statements)
+    _ -> {
+      let #(statement, next_iter) = stmt(iteration)
+      parse_recursive(next_iter, [statement, ..statements])
+    }
+  }
+}
+
+fn stmt(iteration: ParseIteration) -> StatementIteration {
+  let next_iter = next_iteration(iteration.left, iteration.right)
+  case token.tp(iteration.current) {
+    token_type.Print -> print_stmt(next_iter)
+    _ -> expr_stmt(iteration)
+  }
+}
+
+fn print_stmt(iteration: ParseIteration) -> StatementIteration {
+  let #(expr, next_iter) = expr(iteration)
   case token.tp(next_iter.current) {
-    token_type.Eof -> result_expr
-    _ -> error.parse_error(next_iter.current, "Expected expression")
+    token_type.Semicolon -> #(
+      ast.Print(expr),
+      next_iteration(next_iter.left, next_iter.right),
+    )
+    _ -> panic as "Expect ';' after value."
+  }
+}
+
+fn expr_stmt(iteration: ParseIteration) -> StatementIteration {
+  let #(expr, next_iter) = expr(iteration)
+  case token.tp(next_iter.current) {
+    token_type.Semicolon -> #(
+      ast.Expression(expr),
+      next_iteration(next_iter.left, next_iter.right),
+    )
+    _ -> panic as "Expect ';' after value."
   }
 }
 

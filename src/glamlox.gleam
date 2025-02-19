@@ -1,5 +1,4 @@
 import argv
-import ast
 import gleam/erlang
 import gleam/io
 import gleam/string
@@ -15,10 +14,6 @@ pub fn main() {
   case argv.load().arguments {
     ["script", script] -> {
       run_file(script)
-    }
-    ["debug"] -> {
-      repl_header("DEBUG")
-      run_prompt(debug)
     }
     [] -> {
       repl_header("EVALUATE")
@@ -40,10 +35,6 @@ fn repl_header(mode: String) {
 fn run_file(script: String) {
   let assert Ok(source) = simplifile.read(script)
   run(source)
-}
-
-fn debug(source: String) {
-  scanner.scan_tokens(source) |> parser.parse |> ast.print_expr |> io.println
 }
 
 fn run(source: String) {

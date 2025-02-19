@@ -1,11 +1,16 @@
 import ast
+import gleam/list
 import gleeunit/should
 import parser
 import scanner
 
 fn assert_equals(input: String, expected: String) {
-  scanner.scan_tokens(input)
-  |> parser.parse
+  let assert Ok(stmt) =
+    scanner.scan_tokens(input <> ";")
+    |> parser.parse
+    |> list.first
+
+  stmt.expr
   |> ast.print_expr
   |> should.equal(expected)
 }

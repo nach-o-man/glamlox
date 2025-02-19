@@ -1,4 +1,5 @@
 import evaluator
+import gleam/list
 import gleeunit/should
 import lox
 import parser
@@ -8,8 +9,12 @@ type LoxType =
   lox.LoxType
 
 fn assert_ok(input: String) -> LoxType {
-  scanner.scan_tokens(input)
-  |> parser.parse
+  let assert Ok(stmt) =
+    scanner.scan_tokens(input <> ";")
+    |> parser.parse
+    |> list.first
+
+  stmt.expr
   |> evaluator.evaluate
   |> should.be_ok
 }
