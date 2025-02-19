@@ -6,6 +6,7 @@ import gleam/io
 import gleam/list
 import gleam/string
 import lox
+import token
 
 type Expr =
   ast.Expr
@@ -30,6 +31,8 @@ pub fn interpret(statements: StatementList) {
         evaluate(expr)
         Nil
       }
+      ast.Var(tk, expr) ->
+        { token.lexeme(tk) <> " = " <> evaluate(expr) } |> io.println
     }
   })
 }

@@ -10,9 +10,16 @@ fn assert_equals(input: String, expected: String) {
     |> parser.parse
     |> list.first
 
-  stmt.expr
-  |> ast.print_expr
-  |> should.equal(expected)
+  case stmt {
+    ast.Var(_a, _b) -> {
+      should.fail()
+    }
+    ast.Print(expr) | ast.Expression(expr) -> {
+      expr
+      |> ast.print_expr
+      |> should.equal(expected)
+    }
+  }
 }
 
 pub fn parse_primary_test() {

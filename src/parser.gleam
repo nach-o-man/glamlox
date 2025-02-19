@@ -34,6 +34,10 @@ fn next_iteration(left: TokenList, right: TokenList) -> ParseIteration {
   ParseIteration(left, new_current, new_right)
 }
 
+fn consume_current(iteration: ParseIteration) -> ParseIteration {
+  next_iteration(iteration.left, iteration.right)
+}
+
 pub fn parse(tokens: TokenList) -> StatementList {
   let first_iteration = next_iteration([], tokens)
   parse_recursive(first_iteration, [])
@@ -46,14 +50,43 @@ fn parse_recursive(
   case token.tp(iteration.current) {
     token_type.Eof -> list.reverse(statements)
     _ -> {
-      let #(statement, next_iter) = stmt(iteration)
+      let #(statement, next_iter) = declaration(iteration)
       parse_recursive(next_iter, [statement, ..statements])
     }
   }
 }
 
+fn declaration(iteration: ParseIteration) -> StatementIteration {
+  case token.tp(iteration.current) {
+    token_type.Var -> var_declaration(consume_current(iteration))
+    _ -> stmt(iteration)
+  }
+}
+
+fn var_declaration(iteration: ParseIteration) -> StatementIteration {
+  let maybe_name = iteration.current
+  case token.tp(maybe_name) {
+    token_type.Identifier -> {
+      let name = maybe_name
+      let next_iter = consume_current(iteration)
+      let #(initializer, after_init_iter) = case token.tp(next_iter.current) {
+        token_type.Equal -> expr(consume_current(next_iter))
+        _ -> #(ast.NilLiteral, next_iter)
+      }
+      case token.tp(after_init_iter.current) {
+        token_type.Semicolon -> #(
+          ast.Var(name, initializer),
+          consume_current(after_init_iter),
+        )
+        _ -> panic as "Expect ';' after variable declaration."
+      }
+    }
+    _ -> panic as "Expected variable name."
+  }
+}
+
 fn stmt(iteration: ParseIteration) -> StatementIteration {
-  let next_iter = next_iteration(iteration.left, iteration.right)
+  let next_iter = consume_current(iteration)
   case token.tp(iteration.current) {
     token_type.Print -> print_stmt(next_iter)
     _ -> expr_stmt(iteration)
@@ -74,10 +107,7 @@ fn print_stmt(iteration: ParseIteration) -> StatementIteration {
 fn expr_stmt(iteration: ParseIteration) -> StatementIteration {
   let #(expr, next_iter) = expr(iteration)
   case token.tp(next_iter.current) {
-    token_type.Semicolon -> #(
-      ast.Expression(expr),
-      next_iteration(next_iter.left, next_iter.right),
-    )
+    token_type.Semicolon -> #(ast.Expression(expr), consume_current(next_iter))
     _ -> panic as "Expect ';' after value."
   }
 }
@@ -200,6 +230,10 @@ fn primary_expr(iteration: ParseIteration) -> ExpressionIteration {
       }
       #(found_expr, next_iteration(left, right))
     }
+    token_type.Identifier -> #(
+      ast.Variable(current),
+      next_iteration(left, right),
+    )
     token_type.LeftParen -> {
       let #(inner, next_iter) = expr(next_iteration(left, right))
       let ParseIteration(left, maybe_right_paren, right) = next_iter

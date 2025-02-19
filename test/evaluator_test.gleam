@@ -1,3 +1,4 @@
+import ast
 import evaluator
 import gleam/list
 import gleeunit/should
@@ -13,10 +14,17 @@ fn assert_ok(input: String) -> LoxType {
     scanner.scan_tokens(input <> ";")
     |> parser.parse
     |> list.first
-
-  stmt.expr
-  |> evaluator.evaluate
-  |> should.be_ok
+  case stmt {
+    ast.Var(_a, _b) -> {
+      should.fail()
+      lox.LoxNil
+    }
+    ast.Print(expr) | ast.Expression(expr) -> {
+      expr
+      |> evaluator.evaluate
+      |> should.be_ok
+    }
+  }
 }
 
 fn assert_number(input: String, expected: Float) {
