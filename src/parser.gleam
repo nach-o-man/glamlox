@@ -58,12 +58,19 @@ fn parse_recursive(
 
 fn declaration(iteration: ParseIteration) -> StatementIteration {
   case token.tp(iteration.current) {
-    token_type.Var -> var_declaration(consume_current(iteration))
+    token_type.Var ->
+      case var_declaration(consume_current(iteration)) {
+        Ok(value) -> value
+        // Not exactly what is needed here. We swallow the error and just proceed
+        Error(_) -> stmt(synchronise(iteration))
+      }
     _ -> stmt(iteration)
   }
 }
 
-fn var_declaration(iteration: ParseIteration) -> StatementIteration {
+fn var_declaration(
+  iteration: ParseIteration,
+) -> Result(StatementIteration, String) {
   let maybe_name = iteration.current
   case token.tp(maybe_name) {
     token_type.Identifier -> {
@@ -74,14 +81,12 @@ fn var_declaration(iteration: ParseIteration) -> StatementIteration {
         _ -> #(ast.NilLiteral, next_iter)
       }
       case token.tp(after_init_iter.current) {
-        token_type.Semicolon -> #(
-          ast.Var(name, initializer),
-          consume_current(after_init_iter),
-        )
-        _ -> panic as "Expect ';' after variable declaration."
+        token_type.Semicolon ->
+          #(ast.Var(name, initializer), consume_current(after_init_iter)) |> Ok
+        _ -> "Expect ';' after variable declaration." |> Error
       }
     }
-    _ -> panic as "Expected variable name."
+    _ -> "Expected variable name." |> Error
   }
 }
 
@@ -247,5 +252,25 @@ fn primary_expr(iteration: ParseIteration) -> ExpressionIteration {
       }
     }
     _ -> error.parse_error(current, "Expected expression")
+  }
+}
+
+fn synchronise(iteration: ParseIteration) -> ParseIteration {
+  case token.tp(iteration.current) {
+    token_type.Semicolon -> consume_current(iteration)
+    _ -> {
+      let next_iter = consume_current(iteration)
+      case token.tp(next_iter.current) {
+        token_type.Class
+        | token_type.Fun
+        | token_type.Var
+        | token_type.For
+        | token_type.If
+        | token_type.While
+        | token_type.Print
+        | token_type.Return -> next_iter
+        _ -> synchronise(next_iter)
+      }
+    }
   }
 }
