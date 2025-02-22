@@ -5,7 +5,7 @@ import parser
 import scanner
 
 fn assert_equals(input: String, expected: String) {
-  let assert Ok(stmt) =
+  let assert Ok(Ok(stmt)) =
     scanner.scan_tokens(input <> ";")
     |> parser.parse
     |> list.first

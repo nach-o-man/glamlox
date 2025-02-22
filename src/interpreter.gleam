@@ -1,9 +1,9 @@
 import ast
+import env
 import evaluator
 import gleam/bool
 import gleam/float
 import gleam/io
-import gleam/list
 import gleam/string
 import lox
 import token
@@ -18,28 +18,52 @@ type LoxType =
   lox.LoxType
 
 type StatementList =
-  List(Stmt)
+  List(Result(Stmt, String))
+
+type Environment =
+  env.Environment
 
 pub fn interpret(statements: StatementList) {
-  list.each(statements, fn(stmt) {
-    case stmt {
-      ast.Print(expr) -> {
-        evaluate(expr) |> io.println
-        Nil
-      }
-      ast.Expression(expr) -> {
-        evaluate(expr)
-        Nil
-      }
-      ast.Var(tk, expr) ->
-        { token.lexeme(tk) <> " = " <> evaluate(expr) } |> io.println
-    }
-  })
+  interpret_recursive(env.new(), statements)
 }
 
-fn evaluate(expr: Expr) -> String {
+fn interpret_recursive(
+  environment: Environment,
+  statements: StatementList,
+) -> Environment {
+  case statements {
+    [] -> environment
+    [stmt, ..rest] -> {
+      let new_environmtent = case stmt {
+        Ok(value) ->
+          case value {
+            ast.Print(expr) -> {
+              evaluate(expr) |> stringify |> io.println
+              environment
+            }
+            ast.Expression(expr) -> {
+              evaluate(expr)
+              environment
+            }
+            ast.Var(tk, expr) -> {
+              let name = token.lexeme(tk)
+              let value = evaluate(expr)
+              env.define(environment, name, value)
+            }
+          }
+        Error(err) -> {
+          io.println(err)
+          environment
+        }
+      }
+      interpret_recursive(new_environmtent, rest)
+    }
+  }
+}
+
+fn evaluate(expr: Expr) -> LoxType {
   case evaluator.evaluate(expr) {
-    Ok(value) -> stringify(value)
+    Ok(value) -> value
     Error(err) -> panic as err.message
   }
 }

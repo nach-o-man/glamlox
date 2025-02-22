@@ -10,7 +10,7 @@ type LoxType =
   lox.LoxType
 
 fn assert_ok(input: String) -> LoxType {
-  let assert Ok(stmt) =
+  let assert Ok(Ok(stmt)) =
     scanner.scan_tokens(input <> ";")
     |> parser.parse
     |> list.first

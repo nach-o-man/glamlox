@@ -41,6 +41,7 @@ fn run(source: String) {
   scanner.scan_tokens(source)
   |> parser.parse
   |> interpreter.interpret
+  Nil
 }
 
 fn run_prompt(consumer: PromptConsumer) {
