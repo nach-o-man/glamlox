@@ -2,6 +2,7 @@ import ast
 import env
 import evaluator
 import gleam/list
+import gleam/pair
 import gleeunit/should
 import lox
 import parser
@@ -24,6 +25,7 @@ fn assert_ok(input: String) -> LoxType {
       expr
       |> evaluator.evaluate(env.new())
       |> should.be_ok
+      |> pair.first
     }
   }
 }

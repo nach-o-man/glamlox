@@ -118,7 +118,25 @@ fn expr_stmt(iteration: ParseIteration) -> StatementIteration {
 }
 
 fn expr(iteration: ParseIteration) -> ExpressionIteration {
-  iteration |> equality_expr
+  assignment(iteration)
+}
+
+fn assignment(iteration: ParseIteration) -> ExpressionIteration {
+  let #(expression, next_iter) = equality_expr(iteration)
+  let maybe_equal = next_iter.current
+  case token.tp(maybe_equal) {
+    token_type.Equal -> {
+      let #(value, new_next_iter) = assignment(consume_current(next_iter))
+      case expression {
+        ast.Variable(name) -> #(ast.Assign(name, value), new_next_iter)
+        _ ->
+          panic as {
+            "Invalid assignment target: " <> token.to_string(maybe_equal)
+          }
+      }
+    }
+    _ -> #(expression, next_iter)
+  }
 }
 
 fn equality_expr(iteration: ParseIteration) -> ExpressionIteration {

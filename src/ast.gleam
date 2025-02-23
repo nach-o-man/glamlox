@@ -8,6 +8,7 @@ type Token =
   token.Token
 
 pub type Expr {
+  Assign(name: Token, expr: Expr)
   Binary(left: Expr, operator: Token, right: Expr)
   Grouping(expr: Expr)
   StringLiteral(value: String)
@@ -36,6 +37,8 @@ pub fn print_expr(expr: Expr) -> String {
     Unary(op, r) -> parenthesise_recursive("(" <> token.lexeme(op), [r])
     Binary(l, op, r) -> parenthesise_recursive("(" <> token.lexeme(op), [l, r])
     Variable(name) -> token.lexeme(name)
+    Assign(name, expr) ->
+      parenthesise_recursive("(assign " <> token.lexeme(name), [expr])
   }
 }
 

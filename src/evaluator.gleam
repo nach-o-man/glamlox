@@ -17,25 +17,40 @@ type Token =
 type Expr =
   ast.Expr
 
+type Env =
+  env.Environment
+
 type LoxType =
   lox.LoxType
 
-type Env =
-  env.Environment
+type LoxTypeWithEnv =
+  #(LoxType, Env)
 
 type LoxResult =
   Result(LoxType, error.ExpressionError)
 
-pub fn evaluate(expr: Expr, environment: Env) -> LoxResult {
+type LoxResultWithEnv =
+  Result(LoxTypeWithEnv, error.ExpressionError)
+
+fn return_with_env(lox_value: LoxType, environment: Env) -> LoxTypeWithEnv {
+  #(lox_value, environment)
+}
+
+pub fn evaluate(expr: Expr, environment: Env) -> LoxResultWithEnv {
   case expr {
-    ast.BoolLiteral(bool) -> lox.LoxBoolean(bool) |> Ok
-    ast.FloatLiteral(fl) -> lox.LoxNumber(fl) |> Ok
-    ast.IntLiteral(i) -> lox.LoxNumber(int.to_float(i)) |> Ok
-    ast.StringLiteral(s) -> lox.LoxString(s) |> Ok
-    ast.NilLiteral -> lox.LoxNil |> Ok
+    ast.BoolLiteral(bool) ->
+      lox.LoxBoolean(bool) |> return_with_env(environment) |> Ok
+    ast.FloatLiteral(fl) ->
+      lox.LoxNumber(fl) |> return_with_env(environment) |> Ok
+    ast.IntLiteral(i) ->
+      lox.LoxNumber(int.to_float(i)) |> return_with_env(environment) |> Ok
+    ast.StringLiteral(s) ->
+      lox.LoxString(s) |> return_with_env(environment) |> Ok
+    ast.NilLiteral -> lox.LoxNil |> return_with_env(environment) |> Ok
     ast.Unary(op, r) -> evaluate_unary(environment, op, r)
     ast.Binary(l, op, r) -> evaluate_binary(environment, op, l, r)
     ast.Variable(tkn) -> evaluate_variable(environment, tkn)
+    ast.Assign(name, value) -> evaluate_assign(environment, name, value)
     _ -> error.UnsupportedExpression("Unsupported expression", expr) |> Error
   }
 }
@@ -48,9 +63,26 @@ fn is_truthy(value: LoxType) -> Bool {
   }
 }
 
-fn evaluate_variable(environment: Env, tkn: Token) -> LoxResult {
+fn evaluate_variable(environment: Env, tkn: Token) -> LoxResultWithEnv {
   env.get(environment, tkn)
+  |> result.map(return_with_env(_, environment))
   |> result.try_recover(fn(msg) { error.JustMessage(msg) |> Error })
+}
+
+fn evaluate_assign(
+  environment: Env,
+  name: Token,
+  value: Expr,
+) -> LoxResultWithEnv {
+  let maybe_value = evaluate(value, environment)
+  case maybe_value {
+    Ok(#(evaluated, new_env)) -> {
+      env.assign(new_env, token.lexeme(name), evaluated)
+      |> result.map(fn(e) { #(evaluated, e) })
+      |> result.try_recover(fn(msg) { error.JustMessage(msg) |> Error })
+    }
+    Error(err) -> Error(err)
+  }
 }
 
 fn evaluate_binary(
@@ -58,20 +90,29 @@ fn evaluate_binary(
   operator: Token,
   left: Expr,
   right: Expr,
-) -> LoxResult {
-  let left = evaluate(left, environment)
-  let right = evaluate(right, environment)
+) -> LoxResultWithEnv {
+  let maybe_left_and_right = case evaluate(left, environment) {
+    Ok(#(new_left, left_env)) -> {
+      case evaluate(right, left_env) {
+        Ok(#(new_right, right_env)) -> {
+          #(new_left, new_right, right_env) |> Ok
+        }
+        Error(right_err) -> right_err |> Error
+      }
+    }
+    Error(err) -> Error(err)
+  }
 
-  case result.all([left, right]) {
-    Ok(values) ->
-      case values {
-        [lox.LoxNumber(left), lox.LoxNumber(right)] ->
+  case maybe_left_and_right {
+    Ok(#(left, right, environment)) -> {
+      let return_value = case left, right {
+        lox.LoxNumber(left), lox.LoxNumber(right) ->
           evaluate_binary_number_number(operator, left, right)
-        [lox.LoxString(left), lox.LoxString(right)] ->
+        lox.LoxString(left), lox.LoxString(right) ->
           evaluate_binary_string_string(operator, left, right)
-        [lox.LoxString(left), lox.LoxNumber(right)] ->
+        lox.LoxString(left), lox.LoxNumber(right) ->
           evaluate_binary_string_number(operator, left, right)
-        [left, right] -> {
+        left, right -> {
           case token.tp(operator) {
             token_type.EqualEqual -> { left == right } |> lox.LoxBoolean |> Ok
             token_type.BangEqual -> { left != right } |> lox.LoxBoolean |> Ok
@@ -83,8 +124,9 @@ fn evaluate_binary(
               |> Error
           }
         }
-        _ -> error.OperationError("Unsupported operation", operator) |> Error
       }
+      result.map(return_value, fn(v) { return_with_env(v, environment) })
+    }
     Error(err) -> Error(err)
   }
 }
@@ -164,16 +206,37 @@ fn evaluate_binary_string_string(
   }
 }
 
-fn evaluate_unary(environment: Env, operator: Token, right: Expr) -> LoxResult {
-  let assert Ok(right) = evaluate(right, environment)
-  case token.tp(operator) {
-    token_type.Minus -> {
-      case right {
-        lox.LoxNumber(f) -> f |> float.negate |> lox.LoxNumber |> Ok
-        _ -> error.OperationError("Operand must be number.", operator) |> Error
+fn evaluate_unary(
+  environment: Env,
+  operator: Token,
+  right: Expr,
+) -> LoxResultWithEnv {
+  let maybe_right = evaluate(right, environment)
+  case maybe_right {
+    Ok(#(right, new_environment)) -> {
+      case token.tp(operator) {
+        token_type.Minus -> {
+          case right {
+            lox.LoxNumber(f) ->
+              f
+              |> float.negate
+              |> lox.LoxNumber
+              |> return_with_env(new_environment)
+              |> Ok
+            _ ->
+              error.OperationError("Operand must be number.", operator) |> Error
+          }
+        }
+        token_type.Bang ->
+          right
+          |> is_truthy
+          |> bool.negate
+          |> lox.LoxBoolean
+          |> return_with_env(new_environment)
+          |> Ok
+        _ -> error.unreacheable_code()
       }
     }
-    token_type.Bang -> right |> is_truthy |> bool.negate |> lox.LoxBoolean |> Ok
-    _ -> error.unreacheable_code()
+    Error(err) -> err |> Error
   }
 }
