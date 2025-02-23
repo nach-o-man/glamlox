@@ -1,4 +1,5 @@
 import ast
+import env
 import error
 import gleam/bool
 import gleam/float
@@ -19,18 +20,22 @@ type Expr =
 type LoxType =
   lox.LoxType
 
+type Env =
+  env.Environment
+
 type LoxResult =
   Result(LoxType, error.ExpressionError)
 
-pub fn evaluate(expr: Expr) -> LoxResult {
+pub fn evaluate(expr: Expr, environment: Env) -> LoxResult {
   case expr {
     ast.BoolLiteral(bool) -> lox.LoxBoolean(bool) |> Ok
     ast.FloatLiteral(fl) -> lox.LoxNumber(fl) |> Ok
     ast.IntLiteral(i) -> lox.LoxNumber(int.to_float(i)) |> Ok
     ast.StringLiteral(s) -> lox.LoxString(s) |> Ok
     ast.NilLiteral -> lox.LoxNil |> Ok
-    ast.Unary(op, r) -> evaluate_unary(op, r)
-    ast.Binary(l, op, r) -> evaluate_binary(op, l, r)
+    ast.Unary(op, r) -> evaluate_unary(environment, op, r)
+    ast.Binary(l, op, r) -> evaluate_binary(environment, op, l, r)
+    ast.Variable(tkn) -> evaluate_variable(environment, tkn)
     _ -> error.UnsupportedExpression("Unsupported expression", expr) |> Error
   }
 }
@@ -43,9 +48,19 @@ fn is_truthy(value: LoxType) -> Bool {
   }
 }
 
-fn evaluate_binary(operator: Token, left: Expr, right: Expr) -> LoxResult {
-  let left = evaluate(left)
-  let right = evaluate(right)
+fn evaluate_variable(environment: Env, tkn: Token) -> LoxResult {
+  env.get(environment, tkn)
+  |> result.try_recover(fn(msg) { error.JustMessage(msg) |> Error })
+}
+
+fn evaluate_binary(
+  environment: Env,
+  operator: Token,
+  left: Expr,
+  right: Expr,
+) -> LoxResult {
+  let left = evaluate(left, environment)
+  let right = evaluate(right, environment)
 
   case result.all([left, right]) {
     Ok(values) ->
@@ -149,8 +164,8 @@ fn evaluate_binary_string_string(
   }
 }
 
-fn evaluate_unary(operator: Token, right: Expr) -> LoxResult {
-  let assert Ok(right) = evaluate(right)
+fn evaluate_unary(environment: Env, operator: Token, right: Expr) -> LoxResult {
+  let assert Ok(right) = evaluate(right, environment)
   case token.tp(operator) {
     token_type.Minus -> {
       case right {

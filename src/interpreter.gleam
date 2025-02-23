@@ -20,34 +20,31 @@ type LoxType =
 type StatementList =
   List(Result(Stmt, String))
 
-type Environment =
+type Env =
   env.Environment
 
-pub fn interpret(statements: StatementList) {
-  interpret_recursive(env.new(), statements)
+pub fn interpret(statements: StatementList, environment: Env) -> Env {
+  interpret_recursive(environment, statements)
 }
 
-fn interpret_recursive(
-  environment: Environment,
-  statements: StatementList,
-) -> Environment {
+fn interpret_recursive(environment: Env, statements: StatementList) -> Env {
   case statements {
     [] -> environment
     [stmt, ..rest] -> {
-      let new_environmtent = case stmt {
+      let new_environment = case stmt {
         Ok(value) ->
           case value {
             ast.Print(expr) -> {
-              evaluate(expr) |> stringify |> io.println
+              evaluate(expr, environment) |> stringify |> io.println
               environment
             }
             ast.Expression(expr) -> {
-              evaluate(expr)
+              evaluate(expr, environment)
               environment
             }
             ast.Var(tk, expr) -> {
               let name = token.lexeme(tk)
-              let value = evaluate(expr)
+              let value = evaluate(expr, environment)
               env.define(environment, name, value)
             }
           }
@@ -56,13 +53,13 @@ fn interpret_recursive(
           environment
         }
       }
-      interpret_recursive(new_environmtent, rest)
+      interpret_recursive(new_environment, rest)
     }
   }
 }
 
-fn evaluate(expr: Expr) -> LoxType {
-  case evaluator.evaluate(expr) {
+fn evaluate(expr: Expr, environment: Env) -> LoxType {
+  case evaluator.evaluate(expr, environment) {
     Ok(value) -> value
     Error(err) -> panic as err.message
   }

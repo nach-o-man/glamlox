@@ -1,4 +1,5 @@
 import ast
+import env
 import evaluator
 import gleam/list
 import gleeunit/should
@@ -21,7 +22,7 @@ fn assert_ok(input: String) -> LoxType {
     }
     ast.Print(expr) | ast.Expression(expr) -> {
       expr
-      |> evaluator.evaluate
+      |> evaluator.evaluate(env.new())
       |> should.be_ok
     }
   }
