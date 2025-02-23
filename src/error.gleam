@@ -1,5 +1,6 @@
 import ast
 import gleam/int
+import gleam/string
 import token
 import token_type
 
@@ -35,4 +36,12 @@ pub type ExpressionError {
   UnsupportedExpression(message: String, expression: Expr)
   OperationError(message: String, operation: token.Token)
   JustMessage(message: String)
+}
+
+pub fn error_message(err: ExpressionError) -> String {
+  case err {
+    UnsupportedExpression(msg, expr) -> msg <> ": " <> string.inspect(expr)
+    OperationError(msg, op) -> msg <> ": " <> token.to_string(op)
+    JustMessage(msg) -> msg
+  }
 }

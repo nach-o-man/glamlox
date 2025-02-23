@@ -11,8 +11,6 @@ https://craftinginterpreters.com/
 ```sh
 gleam run                         # Run REPL mode
 
-gleam run debug                   # Run REPL in DEBUG mode. It will print AST instead of evaluating.
-
 gleam run script [path_to_file]   # Run code from file
 
 gleam test                        # Run tests
