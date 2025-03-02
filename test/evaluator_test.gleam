@@ -23,7 +23,7 @@ fn assert_ok(input: String) -> LoxType {
     }
     ast.Print(expr) | ast.Expression(expr) -> {
       expr
-      |> evaluator.evaluate(env.new())
+      |> evaluator.evaluate(env.empty())
       |> should.be_ok
       |> pair.first
     }

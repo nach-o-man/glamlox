@@ -22,7 +22,7 @@ pub fn main() {
     }
     [] -> {
       repl_header("EVALUATE")
-      run_prompt(run, env.new())
+      run_prompt(run, env.empty())
     }
     _ -> io.print("Usage: glamlox [script FILE]")
   }
@@ -39,7 +39,7 @@ fn repl_header(mode: String) {
 
 fn run_file(script: String) {
   let assert Ok(source) = simplifile.read(script)
-  run(source, env.new())
+  run(source, env.empty())
 }
 
 fn run(source: String, environment: Env) -> Env {
