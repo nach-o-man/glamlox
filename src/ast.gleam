@@ -4,20 +4,26 @@ import gleam/int
 import gleam/string_tree
 import token
 
+type Token =
+  token.Token
+
 pub type Expr {
-  Binary(left: Expr, operator: token.Token, right: Expr)
+  Assign(name: Token, expr: Expr)
+  Binary(left: Expr, operator: Token, right: Expr)
   Grouping(expr: Expr)
   StringLiteral(value: String)
   FloatLiteral(value: Float)
   BoolLiteral(value: Bool)
   IntLiteral(value: Int)
   NilLiteral
-  Unary(operator: token.Token, right: Expr)
+  Unary(operator: Token, right: Expr)
+  Variable(name: Token)
 }
 
 pub type Stmt {
   Expression(expr: Expr)
   Print(expr: Expr)
+  Var(name: Token, initializer: Expr)
 }
 
 pub fn print_expr(expr: Expr) -> String {
@@ -30,6 +36,9 @@ pub fn print_expr(expr: Expr) -> String {
     Grouping(ex) -> parenthesise_recursive("(group", [ex])
     Unary(op, r) -> parenthesise_recursive("(" <> token.lexeme(op), [r])
     Binary(l, op, r) -> parenthesise_recursive("(" <> token.lexeme(op), [l, r])
+    Variable(name) -> token.lexeme(name)
+    Assign(name, expr) ->
+      parenthesise_recursive("(assign " <> token.lexeme(name), [expr])
   }
 }
 

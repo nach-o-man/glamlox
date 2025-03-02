@@ -1,5 +1,6 @@
 import ast
 import error
+import gleam/list
 import token
 import token_type
 
@@ -9,32 +10,133 @@ type Token =
 type Expr =
   ast.Expr
 
+type Statement =
+  Result(ast.Stmt, String)
+
 type TokenList =
   List(Token)
 
+type StatementList =
+  List(Statement)
+
 type ParseIteration {
-  ParseIteration(left: TokenList, current: Token, rigth: TokenList)
+  ParseIteration(left: TokenList, current: Token, right: TokenList)
 }
 
 type ExpressionIteration =
   #(Expr, ParseIteration)
+
+type StatementIteration =
+  #(Statement, ParseIteration)
 
 fn next_iteration(left: TokenList, right: TokenList) -> ParseIteration {
   let assert [new_current, ..new_right] = right
   ParseIteration(left, new_current, new_right)
 }
 
-pub fn parse(tokens: TokenList) -> Expr {
+fn consume_current(iteration: ParseIteration) -> ParseIteration {
+  next_iteration(iteration.left, iteration.right)
+}
+
+pub fn parse(tokens: TokenList) -> StatementList {
   let first_iteration = next_iteration([], tokens)
-  let #(result_expr, next_iter) = expr(first_iteration)
+  parse_recursive(first_iteration, [])
+}
+
+fn parse_recursive(
+  iteration: ParseIteration,
+  statements: StatementList,
+) -> StatementList {
+  case token.tp(iteration.current) {
+    token_type.Eof -> list.reverse(statements)
+    _ -> {
+      let #(statement, next_iter) = declaration(iteration)
+      let synchronised_iteration = case statement {
+        Ok(_) -> next_iter
+        Error(_) -> synchronise(next_iter)
+      }
+
+      parse_recursive(synchronised_iteration, [statement, ..statements])
+    }
+  }
+}
+
+fn declaration(iteration: ParseIteration) -> StatementIteration {
+  case token.tp(iteration.current) {
+    token_type.Var -> var_declaration(consume_current(iteration))
+    _ -> stmt(iteration)
+  }
+}
+
+fn var_declaration(iteration: ParseIteration) -> StatementIteration {
+  let maybe_name = iteration.current
+  case token.tp(maybe_name) {
+    token_type.Identifier -> {
+      let name = maybe_name
+      let next_iter = consume_current(iteration)
+      let #(initializer, after_init_iter) = case token.tp(next_iter.current) {
+        token_type.Equal -> expr(consume_current(next_iter))
+        _ -> #(ast.NilLiteral, next_iter)
+      }
+      case token.tp(after_init_iter.current) {
+        token_type.Semicolon -> #(
+          ast.Var(name, initializer) |> Ok,
+          consume_current(after_init_iter),
+        )
+        _ -> #("Expect ';' after variable declaration." |> Error, iteration)
+      }
+    }
+    _ -> #("Expected variable name." |> Error, iteration)
+  }
+}
+
+fn stmt(iteration: ParseIteration) -> StatementIteration {
+  let next_iter = consume_current(iteration)
+  case token.tp(iteration.current) {
+    token_type.Print -> print_stmt(next_iter)
+    _ -> expr_stmt(iteration)
+  }
+}
+
+fn print_stmt(iteration: ParseIteration) -> StatementIteration {
+  let #(expr, next_iter) = expr(iteration)
   case token.tp(next_iter.current) {
-    token_type.Eof -> result_expr
-    _ -> error.parse_error(next_iter.current, "Expected expression")
+    token_type.Semicolon -> #(ast.Print(expr) |> Ok, consume_current(next_iter))
+    _ -> #("Expect ';' after value." |> Error, next_iter)
+  }
+}
+
+fn expr_stmt(iteration: ParseIteration) -> StatementIteration {
+  let #(expr, next_iter) = expr(iteration)
+  case token.tp(next_iter.current) {
+    token_type.Semicolon -> #(
+      ast.Expression(expr) |> Ok,
+      consume_current(next_iter),
+    )
+    _ -> #("Expect ';' after value." |> Error, next_iter)
   }
 }
 
 fn expr(iteration: ParseIteration) -> ExpressionIteration {
-  iteration |> equality_expr
+  assignment(iteration)
+}
+
+fn assignment(iteration: ParseIteration) -> ExpressionIteration {
+  let #(expression, next_iter) = equality_expr(iteration)
+  let maybe_equal = next_iter.current
+  case token.tp(maybe_equal) {
+    token_type.Equal -> {
+      let #(value, new_next_iter) = assignment(consume_current(next_iter))
+      case expression {
+        ast.Variable(name) -> #(ast.Assign(name, value), new_next_iter)
+        _ ->
+          panic as {
+            "Invalid assignment target: " <> token.to_string(maybe_equal)
+          }
+      }
+    }
+    _ -> #(expression, next_iter)
+  }
 }
 
 fn equality_expr(iteration: ParseIteration) -> ExpressionIteration {
@@ -151,6 +253,10 @@ fn primary_expr(iteration: ParseIteration) -> ExpressionIteration {
       }
       #(found_expr, next_iteration(left, right))
     }
+    token_type.Identifier -> #(
+      ast.Variable(current),
+      next_iteration(left, right),
+    )
     token_type.LeftParen -> {
       let #(inner, next_iter) = expr(next_iteration(left, right))
       let ParseIteration(left, maybe_right_paren, right) = next_iter
@@ -164,5 +270,26 @@ fn primary_expr(iteration: ParseIteration) -> ExpressionIteration {
       }
     }
     _ -> error.parse_error(current, "Expected expression")
+  }
+}
+
+fn synchronise(iteration: ParseIteration) -> ParseIteration {
+  case token.tp(iteration.current) {
+    token_type.Eof -> iteration
+    token_type.Semicolon -> consume_current(iteration)
+    _ -> {
+      let next_iter = consume_current(iteration)
+      case token.tp(next_iter.current) {
+        token_type.Class
+        | token_type.Fun
+        | token_type.Var
+        | token_type.For
+        | token_type.If
+        | token_type.While
+        | token_type.Print
+        | token_type.Return -> next_iter
+        _ -> synchronise(next_iter)
+      }
+    }
   }
 }

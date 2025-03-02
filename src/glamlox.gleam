@@ -1,5 +1,5 @@
 import argv
-import ast
+import env
 import gleam/erlang
 import gleam/io
 import gleam/string
@@ -8,21 +8,21 @@ import parser
 import scanner
 import simplifile
 
+type Env =
+  env.Environment
+
 type PromptConsumer =
-  fn(String) -> Nil
+  fn(String, Env) -> Env
 
 pub fn main() {
   case argv.load().arguments {
     ["script", script] -> {
       run_file(script)
-    }
-    ["debug"] -> {
-      repl_header("DEBUG")
-      run_prompt(debug)
+      Nil
     }
     [] -> {
       repl_header("EVALUATE")
-      run_prompt(run)
+      run_prompt(run, env.empty())
     }
     _ -> io.print("Usage: glamlox [script FILE]")
   }
@@ -39,26 +39,22 @@ fn repl_header(mode: String) {
 
 fn run_file(script: String) {
   let assert Ok(source) = simplifile.read(script)
-  run(source)
+  run(source, env.empty())
 }
 
-fn debug(source: String) {
-  scanner.scan_tokens(source) |> parser.parse |> ast.print_expr |> io.println
-}
-
-fn run(source: String) {
+fn run(source: String, environment: Env) -> Env {
   scanner.scan_tokens(source)
   |> parser.parse
-  |> interpreter.interpret
+  |> interpreter.interpret(environment)
 }
 
-fn run_prompt(consumer: PromptConsumer) {
+fn run_prompt(consumer: PromptConsumer, environment: Env) {
   let assert Ok(line) = erlang.get_line("~> ")
   case string.trim(line) {
     "exit" -> Nil
     _ -> {
-      consumer(line)
-      run_prompt(consumer)
+      let new_env = run(line, environment)
+      run_prompt(consumer, new_env)
     }
   }
 }

@@ -1,13 +1,25 @@
 import ast
+import gleam/list
 import gleeunit/should
 import parser
 import scanner
 
 fn assert_equals(input: String, expected: String) {
-  scanner.scan_tokens(input)
-  |> parser.parse
-  |> ast.print_expr
-  |> should.equal(expected)
+  let assert Ok(Ok(stmt)) =
+    scanner.scan_tokens(input <> ";")
+    |> parser.parse
+    |> list.first
+
+  case stmt {
+    ast.Var(_a, _b) -> {
+      should.fail()
+    }
+    ast.Print(expr) | ast.Expression(expr) -> {
+      expr
+      |> ast.print_expr
+      |> should.equal(expected)
+    }
+  }
 }
 
 pub fn parse_primary_test() {
